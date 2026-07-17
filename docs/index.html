@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proyecto CP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-deep:#0B1B36;
+    --navy-mid:#15294D;
+    --navy-soft:#1E3A66;
+    --ink:#1B2436;
+    --slate:#8FA0C0;
+    --accent:#2E6BE6;
+    --sidebar-collapsed:76px;
+    --sidebar-expanded:252px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:'Inter',sans-serif; background:#0B1B36; color:#fff;
+    -webkit-font-smoothing:antialiased; overflow:hidden;
+  }
+
+  .app-shell{display:flex; height:100vh; width:100vw;}
+
+  /* ---------------- Sidebar ---------------- */
+  .sidebar{
+    width:var(--sidebar-collapsed);
+    flex-shrink:0;
+    background:linear-gradient(180deg, var(--navy-deep), var(--navy-mid) 65%, var(--navy-soft));
+    display:flex; flex-direction:column;
+    transition:width .28s cubic-bezier(.4,0,.2,1);
+    overflow:hidden;
+    position:relative;
+    z-index:20;
+    box-shadow:2px 0 24px rgba(0,0,0,0.25);
+  }
+  .sidebar:hover{width:var(--sidebar-expanded);}
+
+  .sidebar-top{
+    display:flex; align-items:center; gap:14px;
+    padding:22px 20px; height:76px; flex-shrink:0;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+  }
+  .brand-mark{
+    width:36px; height:36px; border-radius:10px; flex-shrink:0;
+    background:linear-gradient(135deg, var(--accent), #63E6BE);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Sora',sans-serif; font-weight:800; font-size:14px; color:#fff;
+  }
+  .brand-text{
+    font-family:'Sora',sans-serif; font-weight:700; font-size:17px; letter-spacing:-0.01em;
+    white-space:nowrap; opacity:0; transition:opacity .18s ease .05s;
+  }
+  .sidebar:hover .brand-text{opacity:1;}
+
+  .sidebar-nav{flex:1; padding:16px 0; overflow-y:auto; overflow-x:hidden;}
+  .nav-section-label{
+    font-size:10px; text-transform:uppercase; letter-spacing:.12em; font-weight:700; color:var(--slate);
+    padding:8px 24px; white-space:nowrap; opacity:0; transition:opacity .18s ease .05s;
+  }
+  .sidebar:hover .nav-section-label{opacity:1;}
+
+  .nav-item{
+    display:flex; align-items:center; gap:16px;
+    width:100%; padding:13px 26px; border:none; background:transparent; cursor:pointer;
+    color:#C6D2EA; text-align:left; position:relative;
+    font-family:'Inter',sans-serif; font-size:14px; font-weight:600;
+    transition:background .15s ease, color .15s ease;
+  }
+  .nav-item:hover{background:rgba(255,255,255,0.06); color:#fff;}
+  .nav-item.active{color:#fff; background:rgba(46,107,230,0.16);}
+  .nav-item.active::before{
+    content:""; position:absolute; left:0; top:8px; bottom:8px; width:3px;
+    background:var(--accent); border-radius:0 4px 4px 0;
+  }
+  .nav-item .nav-icon{
+    width:22px; height:22px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  }
+  .nav-item .nav-icon svg{width:20px; height:20px;}
+  .nav-item .nav-label{
+    white-space:nowrap; opacity:0; transition:opacity .18s ease .05s;
+    overflow:hidden;
+  }
+  .sidebar:hover .nav-item .nav-label{opacity:1;}
+  .nav-item .nav-badge{
+    margin-left:auto; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+    background:rgba(255,255,255,0.12); color:var(--slate); padding:2px 7px; border-radius:5px;
+    white-space:nowrap; opacity:0; transition:opacity .18s ease .05s; flex-shrink:0;
+  }
+  .sidebar:hover .nav-item .nav-badge{opacity:1;}
+
+  .nav-item-add{
+    color:var(--slate); font-style:normal;
+  }
+  .nav-item-add .nav-icon svg{opacity:.7;}
+
+  .sidebar-bottom{
+    padding:16px 20px 20px; border-top:1px solid rgba(255,255,255,0.08); flex-shrink:0;
+  }
+  .user-chip{display:flex; align-items:center; gap:12px;}
+  .user-avatar{
+    width:36px; height:36px; border-radius:10px; flex-shrink:0;
+    background:linear-gradient(135deg,#8A5CF6,#C05CF6);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Sora',sans-serif; font-weight:700; font-size:14px; color:#fff;
+  }
+  .user-info{white-space:nowrap; overflow:hidden; opacity:0; transition:opacity .18s ease .05s;}
+  .sidebar:hover .user-info{opacity:1;}
+  .user-name{font-size:12.5px; font-weight:700; color:#fff;}
+  .user-role{font-size:10.5px; color:var(--slate); margin-top:1px;}
+
+  /* ---------------- Content ---------------- */
+  .content{flex:1; position:relative; background:#F3F5F9; min-width:0;}
+  .view{
+    position:absolute; inset:0; width:100%; height:100%;
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
+  }
+  .view.active{opacity:1; pointer-events:auto;}
+  .view iframe{width:100%; height:100%; border:none; display:block;}
+
+  .kpi-view{
+    background:#050B16; display:flex; align-items:center; justify-content:center; overflow:auto;
+  }
+  .kpi-view img{max-width:100%; max-height:100%; object-fit:contain; display:block;}
+
+  ::-webkit-scrollbar{width:8px; height:8px;}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15); border-radius:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <div class="brand-mark">CP</div>
+      <div class="brand-text">Proyecto CP</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Paneles</div>
+
+      <button class="nav-item active" data-target="csat" title="Gestión CSAT Online">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+        </span>
+        <span class="nav-label">Gestión CSAT Online</span>
+      </button>
+
+      <button class="nav-item" data-target="kpi" title="Gestión KPI">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
+        </span>
+        <span class="nav-label">Gestión KPI</span>
+      </button>
+
+      <button class="nav-item" data-target="supervisor" title="Evolutivo por Supervisor">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        </span>
+        <span class="nav-label">Evolutivo por Supervisor</span>
+      </button>
+
+      <button class="nav-item nav-item-add" disabled title="Más paneles próximamente">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </span>
+        <span class="nav-label">Nuevo panel</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="user-chip">
+        <div class="user-avatar">C</div>
+        <div class="user-info">
+          <div class="user-name">Carlos Eduardo Peña</div>
+          <div class="user-role">ABAI Group</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="content">
+    <div class="view active" id="view-csat">
+      <iframe id="csatFrame" src="dashboard_csat_recupero.html" title="Gestión CSAT Online"></iframe>
+    </div>
+    <div class="view" id="view-kpi">
+      <iframe id="kpiFrame" src="kpi-dashboard.html" title="Gestión KPI"></iframe>
+    </div>
+    <div class="view" id="view-supervisor">
+      <iframe id="supervisorFrame" src="evolutivo-supervisor.html" title="Evolutivo por Supervisor"></iframe>
+    </div>
+  </main>
+</div>
+
+<script>
+  var navItems = document.querySelectorAll('.nav-item[data-target]');
+  var views = document.querySelectorAll('.view');
+  var iframeLoaded = { csat: true, kpi: true };
+
+  navItems.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var target = btn.getAttribute('data-target');
+      navItems.forEach(function(b){ b.classList.toggle('active', b===btn); });
+      views.forEach(function(v){ v.classList.toggle('active', v.id === 'view-'+target); });
+    });
+  });
+</script>
+</body>
+</html>
