@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestión KPI · Improductivos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  :root{
+    --navy-deep:#0B1B36;
+    --navy-mid:#15294D;
+    --navy-soft:#1E3A66;
+    --ink:#1B2436;
+    --slate:#5B6980;
+    --slate-light:#8A96AA;
+    --bg:#F3F5F9;
+    --card:#FFFFFF;
+    --border:#E4E8F0;
+    --good:#1E9E6B;
+    --good-bg:#E7F7EF;
+    --warn:#DB9A2C;
+    --warn-bg:#FCF1DD;
+    --bad:#D9473F;
+    --bad-bg:#FBE9E8;
+    --accent:#2E6BE6;
+    --radius:14px;
+    --shadow: 0 1px 2px rgba(11,27,54,0.04), 0 8px 24px rgba(11,27,54,0.06);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--ink); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased;}
+  body{padding-bottom:80px;}
+  h1,h2,h3,.display{font-family:'Sora',sans-serif;}
+  .mono{font-family:'IBM Plex Mono', monospace;}
+
+  header.topbar{
+    background:linear-gradient(135deg, var(--navy-deep), var(--navy-mid) 60%, var(--navy-soft));
+    color:#fff; padding:26px 36px 30px; min-height:120px; position:relative; overflow:hidden;
+  }
+  header.topbar::before{
+    content:""; position:absolute; inset:0;
+    background-image:
+      radial-gradient(circle at 88% -10%, rgba(255,255,255,0.10), transparent 45%),
+      radial-gradient(circle at 15% 120%, rgba(46,107,230,0.25), transparent 45%);
+    pointer-events:none;
+  }
+  .topbar-inner{position:relative; display:flex; justify-content:space-between; align-items:flex-end; gap:24px; flex-wrap:wrap; max-width:1500px; margin:0 auto;}
+  .brand-eyebrow{font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#8FB0F5; margin-bottom:8px;}
+  .brand-title{font-size:26px; font-weight:700; letter-spacing:-0.01em;}
+  .brand-sub{color:#B7C4DE; font-size:13.5px; margin-top:6px; max-width:580px; line-height:1.5;}
+  .topbar-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .btn-ghost{
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); color:#fff;
+    padding:10px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer;
+    display:inline-flex; align-items:center; gap:8px; font-family:'Inter',sans-serif;
+    transition:background .15s ease;
+  }
+  .btn-ghost:hover{background:rgba(255,255,255,0.16);}
+  .btn-ghost svg{width:15px; height:15px;}
+  .btn-ghost.loading svg{animation:spin .8s linear infinite;}
+  @keyframes spin{from{transform:rotate(0deg);} to{transform:rotate(360deg);}}
+  .data-status{font-size:11.5px; color:#8FB0F5; margin-top:8px; font-family:'IBM Plex Mono',monospace;}
+
+  main{max-width:1500px; margin:0 auto; padding:28px 36px 0;}
+  .toolbar{
+    display:flex; gap:12px; flex-wrap:wrap; align-items:center;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 18px; margin-top:-46px; position:relative; z-index:5; box-shadow:var(--shadow);
+  }
+  .toolbar label{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--slate); font-weight:600; display:block; margin-bottom:4px;}
+  .toolbar input[type=date]{border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:13px; font-family:'Inter',sans-serif; color:var(--ink); background:#fff;}
+  .toolbar input[type=date].active-filter{border-color:var(--accent); background:#EEF3FE;}
+  .toolbar .field{display:flex; flex-direction:column;}
+  .toolbar .spacer{flex:1;}
+  .toolbar .count-pill{background:var(--bg); border:1px solid var(--border); border-radius:999px; padding:8px 14px; font-size:12.5px; font-weight:600; color:var(--navy-mid); font-family:'IBM Plex Mono',monospace;}
+  .toolbar button.reset-filters{border:1px solid var(--border); background:#fff; color:var(--slate); border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:600; cursor:pointer;}
+  .toolbar button.reset-filters:hover{color:var(--bad); border-color:var(--bad);}
+
+  .msfield{position:relative;}
+  .ms-btn{
+    border:1px solid var(--border); border-radius:8px; padding:8px 32px 8px 10px; font-size:13px; font-family:'Inter',sans-serif;
+    color:var(--ink); background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="%235B6980"><path d="M5.5 7.5l4.5 5 4.5-5z"/></svg>') no-repeat right 8px center; background-size:14px;
+    min-width:170px; text-align:left; cursor:pointer;
+  }
+  .ms-btn.has-selection{border-color:var(--accent); color:var(--accent); font-weight:600;}
+  .ms-panel{
+    position:absolute; top:calc(100% + 6px); left:0; min-width:240px; max-height:280px; overflow-y:auto;
+    background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow);
+    padding:8px; z-index:30; display:none;
+  }
+  .ms-panel.open{display:block;}
+  .ms-search{width:100%; box-sizing:border-box; padding:7px 10px; margin-bottom:8px; border:1px solid var(--border); border-radius:7px; font-size:12.5px;}
+  .ms-actions{display:flex; gap:6px; padding:2px 4px 8px; margin-bottom:6px; border-bottom:1px solid var(--border);}
+  .ms-action{border:none; background:var(--bg); color:var(--navy-mid); font-size:11.5px; font-weight:600; padding:5px 10px; border-radius:6px; cursor:pointer;}
+  .ms-options label{display:flex; align-items:center; gap:9px; padding:7px 8px; border-radius:6px; font-size:13px; cursor:pointer;}
+  .ms-options label:hover{background:var(--bg);}
+  .ms-options label.ms-hidden{display:none;}
+  .ms-options input[type=checkbox]{width:15px; height:15px; accent-color:var(--accent);}
+
+  section{margin-top:24px;}
+  .section-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; gap:12px; flex-wrap:wrap;}
+  .section-head h2{font-size:16px; font-weight:700; letter-spacing:-0.01em;}
+  .section-head .section-note{font-size:12px; color:var(--slate-light);}
+  .eyebrow{font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.12em; color:var(--accent); font-weight:600; margin-bottom:4px; display:block;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);}
+
+  /* KPI tiles */
+  .kpi-grid{display:grid; grid-template-columns:repeat(5, 1fr); gap:12px;}
+  .kpi-tile{padding:16px 16px; display:flex; flex-direction:column; gap:6px; position:relative;}
+  .kpi-tile .k-label{font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--slate); font-weight:700; line-height:1.3;}
+  .kpi-tile .k-value{font-family:'Sora',sans-serif; font-size:22px; font-weight:800; letter-spacing:-0.01em;}
+  .kpi-tile .k-obj{font-size:10.5px; color:var(--slate-light); font-family:'IBM Plex Mono',monospace;}
+  .kpi-tile .k-badge{
+    position:absolute; top:14px; right:14px; font-size:9.5px; font-weight:700; padding:2px 7px; border-radius:5px;
+  }
+  .k-badge.good{background:var(--good-bg); color:var(--good);}
+  .k-badge.bad{background:var(--bad-bg); color:var(--bad);}
+
+  /* Objectives strip */
+  .obj-strip{display:flex; flex-direction:column; gap:10px; padding:16px 20px;}
+  .obj-chip{
+    display:flex; flex-direction:column; gap:2px; padding:10px 16px; border-radius:10px; background:var(--bg); border:1px solid var(--border); min-width:150px;
+  }
+  .obj-chip .oc-plat{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--navy-mid);}
+  .obj-chip .oc-row{display:flex; justify-content:space-between; gap:10px; font-size:12px; color:var(--slate); margin-top:3px;}
+  .obj-chip .oc-row b{color:var(--ink); font-family:'IBM Plex Mono',monospace;}
+  .obj-chip-h{flex-direction:row; align-items:center; flex-wrap:wrap; gap:20px; padding:12px 18px;}
+  .obj-chip-h .oc-plat{flex-shrink:0; min-width:120px;}
+  .oc-items{display:flex; gap:22px; flex-wrap:wrap; flex:1;}
+  .oc-item{display:flex; flex-direction:column; gap:2px;}
+  .oc-item-label{font-size:10.5px; color:var(--slate);}
+  .oc-item b{font-size:14px; color:var(--ink); font-family:'IBM Plex Mono',monospace;}
+  .obj-month-note{font-size:11.5px; color:var(--slate-light); padding:0 20px 4px;}
+
+  /* Charts */
+  .charts-row{display:grid; grid-template-columns:1fr; gap:16px;}
+  .charts-row-2col{grid-template-columns:1fr 1fr;}
+  .chart-card{padding:16px 18px 14px;}
+  .chart-card-title{font-size:12.5px; font-weight:700; color:var(--slate); margin-bottom:8px;}
+  .chart-canvas-wrap{position:relative; height:230px; width:100%;}
+  .chart-canvas-wrap-tall{height:300px;}
+  select.kpi-select{
+    border:1px solid var(--border); border-radius:8px; padding:8px 30px 8px 12px; font-size:13px; font-family:'Inter',sans-serif;
+    color:var(--ink); background:#fff; cursor:pointer;
+  }
+
+  /* Table */
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  thead th{
+    text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--slate);
+    font-weight:700; padding:8px 9px; border-bottom:1px solid var(--border); cursor:pointer; user-select:none; white-space:nowrap;
+  }
+  thead th:hover{color:var(--navy-mid);}
+  thead th .arrow{font-size:9px; margin-left:3px; opacity:.5;}
+  tbody td{padding:8px 9px; border-bottom:1px solid var(--border); vertical-align:middle; white-space:nowrap;}
+  tbody tr:hover{background:#F8FAFD;}
+  .rank-table-wrap{max-height:480px; overflow-y:auto; padding:6px 10px 14px;}
+  .name-cell{font-weight:600; color:var(--ink);}
+
+  .filter-empty-banner{
+    display:none; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    max-width:1500px; margin:14px auto 0; padding:12px 18px; background:#FEF3E2; border:1px solid #F6D9A8;
+    color:#8A5A0F; border-radius:10px; font-size:13px;
+  }
+  .filter-empty-banner.show{display:flex;}
+  .filter-empty-banner button{background:#fff; border:1px solid #F0C583; color:#8A5A0F; font-weight:700; font-size:12.5px; padding:7px 14px; border-radius:8px; cursor:pointer;}
+
+  .demo-warning-banner{
+    display:none; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    max-width:1500px; margin:14px auto 0; padding:14px 18px; background:#FBE9E8; border:1.5px solid #E6A6A2;
+    color:#8A2A24; border-radius:10px; font-size:13.5px; font-weight:600;
+  }
+  .demo-warning-banner.show{display:flex;}
+  .demo-warning-banner button{background:#fff; border:1px solid #E6A6A2; color:#8A2A24; font-weight:700; font-size:12.5px; padding:8px 16px; border-radius:8px; cursor:pointer;}
+
+  ::-webkit-scrollbar{width:8px; height:8px;}
+  ::-webkit-scrollbar-thumb{background:#D3DAE6; border-radius:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+
+  @media (max-width:1200px){ .kpi-grid{grid-template-columns:repeat(3,1fr);} .charts-row-2col{grid-template-columns:1fr;} }
+  @media (max-width:640px){ .kpi-grid{grid-template-columns:repeat(2,1fr);} main{padding:22px 16px 0;} .toolbar{margin-top:-30px;} }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div>
+      <span class="brand-eyebrow">ABAI · Operaciones Movistar</span>
+      <h1 class="brand-title">Gestión KPI — Improductivos</h1>
+      <p class="brand-sub">Rellamadas, transferencias, TMO, hold, tipificación y CSAT por agente y plataforma, con objetivos del periodo.</p>
+    </div>
+    <div style="text-align:right;">
+      <div class="topbar-actions">
+        <button class="btn-ghost" id="btnRefresh">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-2.64-6.36"/><path d="M21 4v6h-6"/></svg>
+          Actualizar datos
+        </button>
+      </div>
+      <div class="data-status" id="dataStatus">—</div>
+    </div>
+  </div>
+</header>
+
+<div class="demo-warning-banner" id="demoWarningBanner">
+  <span>⚠️ No se pudieron cargar los datos (no logró conectarse al archivo). Verifica que el servidor local esté activo.</span>
+  <button type="button" id="btnRetryConnection">Reintentar conexión</button>
+</div>
+
+<div class="demo-warning-banner" id="fileErrorBanner" style="background:#FEF3E2; border-color:#F6D9A8; color:#8A5A0F;"></div>
+
+<main>
+
+  <div class="toolbar" id="toolbar">
+    <div class="field msfield">
+      <label>Plataforma</label>
+      <button type="button" class="ms-btn" id="msPlatBtn">Todas</button>
+      <div class="ms-panel" id="msPlatPanel">
+        <input type="text" class="ms-search" id="msPlatSearch" placeholder="Buscar...">
+        <div class="ms-actions"><button type="button" class="ms-action" data-scope="plat">Limpiar selección</button></div>
+        <div class="ms-options" id="msPlatOptions"></div>
+      </div>
+    </div>
+    <div class="field msfield">
+      <label>Jefe directo</label>
+      <button type="button" class="ms-btn" id="msJefeBtn">Todos</button>
+      <div class="ms-panel" id="msJefePanel">
+        <input type="text" class="ms-search" id="msJefeSearch" placeholder="Buscar...">
+        <div class="ms-actions"><button type="button" class="ms-action" data-scope="jefe">Limpiar selección</button></div>
+        <div class="ms-options" id="msJefeOptions"></div>
+      </div>
+    </div>
+    <div class="field msfield">
+      <label>Programa</label>
+      <button type="button" class="ms-btn" id="msProgBtn">Todos</button>
+      <div class="ms-panel" id="msProgPanel">
+        <input type="text" class="ms-search" id="msProgSearch" placeholder="Buscar...">
+        <div class="ms-actions"><button type="button" class="ms-action" data-scope="programa">Limpiar selección</button></div>
+        <div class="ms-options" id="msProgOptions"></div>
+      </div>
+    </div>
+    <div class="field msfield">
+      <label>Estado laboral</label>
+      <button type="button" class="ms-btn" id="msEstadoBtn">Todos</button>
+      <div class="ms-panel" id="msEstadoPanel">
+        <input type="text" class="ms-search" id="msEstadoSearch" placeholder="Buscar...">
+        <div class="ms-actions"><button type="button" class="ms-action" data-scope="estado">Limpiar selección</button></div>
+        <div class="ms-options" id="msEstadoOptions"></div>
+      </div>
+    </div>
+    <div class="field msfield">
+      <label>Antigüedad</label>
+      <button type="button" class="ms-btn" id="msAntBtn">Todas</button>
+      <div class="ms-panel" id="msAntPanel">
+        <input type="text" class="ms-search" id="msAntSearch" placeholder="Buscar...">
+        <div class="ms-actions"><button type="button" class="ms-action" data-scope="antiguedad">Limpiar selección</button></div>
+        <div class="ms-options" id="msAntOptions"></div>
+      </div>
+    </div>
+    <div class="field msfield">
+      <label>Mes</label>
+      <button type="button" class="ms-btn" id="msMesBtn">Todos</button>
+      <div class="ms-panel" id="msMesPanel">
+        <input type="text" class="ms-search" id="msMesSearch" placeholder="Buscar...">
+        <div class="ms-actions"><button type="button" class="ms-action" data-scope="mes">Limpiar selección</button></div>
+        <div class="ms-options" id="msMesOptions"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Desde</label>
+      <input type="date" id="fFrom">
+    </div>
+    <div class="field">
+      <label>Hasta</label>
+      <input type="date" id="fTo">
+    </div>
+    <button class="reset-filters" id="btnResetFilters">Limpiar filtros</button>
+    <div class="spacer"></div>
+    <div class="count-pill" id="countPill">0 registros</div>
+  </div>
+
+  <div class="filter-empty-banner" id="filterEmptyBanner">
+    <span>No hay datos para los filtros seleccionados.</span>
+    <button type="button" id="btnClearFromBanner">Limpiar filtros</button>
+  </div>
+
+  <!-- OBJECTIVES STRIP -->
+  <section id="objSection" style="display:none;">
+    <div class="section-head">
+      <div><span class="eyebrow">Objetivos del periodo</span><h2>Metas por plataforma seleccionada</h2></div>
+    </div>
+    <div class="card" style="padding:0;">
+      <div class="obj-month-note" style="padding-top:16px;" id="objMonthNote"></div>
+      <div class="obj-strip" id="objStrip"></div>
+    </div>
+  </section>
+
+  <!-- KPI GRID -->
+  <section>
+    <div class="section-head">
+      <div><span class="eyebrow">Resumen</span><h2>Indicadores del periodo filtrado</h2></div>
+    </div>
+    <div class="kpi-grid" id="kpiGrid"></div>
+  </section>
+
+  <!-- EVOLUTIVO CHART -->
+  <section>
+    <div class="section-head">
+      <div><span class="eyebrow">Evolutivo</span><h2>Tendencia del periodo</h2></div>
+      <select class="kpi-select" id="kpiSelect"></select>
+    </div>
+    <div class="charts-row charts-row-2col">
+      <div class="card chart-card">
+        <div class="chart-card-title">Diario</div>
+        <div class="chart-canvas-wrap"><canvas id="chartEvolutivoDia"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <div class="chart-card-title">Semanal</div>
+        <div class="chart-canvas-wrap"><canvas id="chartEvolutivoSemana"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RANKING TABLE -->
+  <section>
+    <div class="section-head">
+      <div><span class="eyebrow">Detalle</span><h2>Por agente</h2></div>
+      <span class="section-note">Clic en un encabezado para ordenar</span>
+    </div>
+    <div class="card">
+      <div class="rank-table-wrap">
+        <table id="tblAgentes">
+          <thead><tr>
+            <th data-key="agente">Agente <span class="arrow"></span></th>
+            <th data-key="atendidas">Ll. Atendidas <span class="arrow"></span></th>
+            <th data-key="pTransfer">% Transfer. <span class="arrow"></span></th>
+            <th data-key="pRell72">% Rell 72h <span class="arrow"></span></th>
+            <th data-key="pRell30">% Rell 30m <span class="arrow"></span></th>
+            <th data-key="pRell24">% Rell 24h <span class="arrow"></span></th>
+            <th data-key="pShortCall">% ShortCall <span class="arrow"></span></th>
+            <th data-key="tmo">TMO <span class="arrow"></span></th>
+            <th data-key="encuestas">Encuestas <span class="arrow"></span></th>
+            <th data-key="pNps">% NPS <span class="arrow"></span></th>
+            <th data-key="pSol">% SOL <span class="arrow"></span></th>
+            <th data-key="pHold">% Hold <span class="arrow"></span></th>
+            <th data-key="pTipif">% Tipif. <span class="arrow"></span></th>
+            <th data-key="csat">CSAT <span class="arrow"></span></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer style="max-width:1500px; margin:40px auto 0; padding:0 36px; color:var(--slate-light); font-size:11.5px; display:flex; justify-content:space-between;">
+  <span>Gestión KPI — panel generado a partir del archivo de Improductivos.</span>
+  <span id="footStamp"></span>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  // ============================================================================
+  // CONFIGURACIÓN — versión nube (GitHub Pages)
+  // ------------------------------------------------------------------------
+  // Esta pagina lee "improductivos-data.json", generado por push-to-github.ps1
+  // a partir de los archivos de la carpeta Improductivos. Cada vez que ese
+  // script corre, sube una version nueva y GitHub Pages redespliega el sitio.
+  var AUTO_REFRESH_MINUTES = 5;
+  var MONTH_ABBR = ['Ene.','Feb.','Mar.','Abr.','May.','Jun.','Jul.','Ago.','Sep.','Oct.','Nov.','Dic.'];
+  // ============================================================================
+
+  var COLORS = { good:'#1E9E6B', warn:'#DB9A2C', bad:'#D9473F', accent:'#2E6BE6', navy:'#15294D' };
+
+  var KPI_DEFS = [
+    { key:'atendidas',  label:'Ll. Atendidas',     fmt:'int',   objKey:null,           higherBetter:true  },
+    { key:'pTransfer',  label:'% Transferencia',   fmt:'pct',   objKey:'objTransfer',  higherBetter:false },
+    { key:'pRell72',    label:'% Rellamada 72h',   fmt:'pct',   objKey:'objRell72',    higherBetter:false },
+    { key:'pRell30',    label:'% Rellamada 30min', fmt:'pct',   objKey:'objRell30',    higherBetter:false },
+    { key:'pRell24',    label:'% Rellamada 24h',   fmt:'pct',   objKey:null,           higherBetter:false },
+    { key:'pShortCall', label:'% Short Call',      fmt:'pct',   objKey:null,           higherBetter:false },
+    { key:'tmo',        label:'TMO (seg)',         fmt:'num1',  objKey:null,           higherBetter:false },
+    { key:'encuestas',  label:'Encuestas',         fmt:'int',   objKey:null,           higherBetter:true  },
+    { key:'pNps',       label:'% NPS',             fmt:'pctS',  objKey:null,           higherBetter:true  },
+    { key:'pSol',       label:'% SOL',             fmt:'pct',   objKey:null,           higherBetter:true  },
+    { key:'pHold',      label:'% Hold',            fmt:'pct',   objKey:null,           higherBetter:false },
+    { key:'pTipif',     label:'% Tipificación',    fmt:'pct',   objKey:null,           higherBetter:true  },
+    { key:'csat',       label:'CSAT',              fmt:'num1',  objKey:null,           higherBetter:true  }
+  ];
+  var KPI_BY_KEY = {};
+  KPI_DEFS.forEach(function(d){ KPI_BY_KEY[d.key] = d; });
+
+  var STATE = {
+    raw: [],
+    filtered: [],
+    objectivesByMonth: {},
+    filters: { plat: new Set(), jefe: new Set(), programa: new Set(), estado: new Set(), antiguedad: new Set(), mes: new Set() },
+    sort: { key:'atendidas', dir:-1 },
+    lastFileName: null,
+    lastLoadErrors: [],
+    autoConnected: false
+  };
+
+  // (chartRefs para diario/semanal se declara junto a renderEvolutivo)
+
+  // ---------------- Utilities ----------------
+  function esc(s){
+    if(s===null || s===undefined) return '';
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function fmtInt(n){ return Math.round(n||0).toLocaleString('es-PE'); }
+  function normalize(s){
+    return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+  }
+  function fmtDateOnly(yyyyMmDd){
+    if(!yyyyMmDd || yyyyMmDd.length < 10) return yyyyMmDd || '—';
+    return yyyyMmDd.substring(8,10)+'/'+yyyyMmDd.substring(5,7)+'/'+yyyyMmDd.substring(0,4);
+  }
+  // ---------------- Aggregation ----------------
+  function sumBy(list, field){
+    var s = 0;
+    for(var i=0;i<list.length;i++) s += (list[i][field]||0);
+    return s;
+  }
+  function ratio(num, den){ return den ? (num/den) : null; }
+
+  function computeKPIs(list){
+    var atendidas = sumBy(list,'atendidas');
+    return {
+      atendidas: atendidas,
+      pTransfer: ratio(sumBy(list,'culpTrx'), atendidas),
+      pRell72: ratio(sumBy(list,'rell72'), sumBy(list,'atendRell72')),
+      pRell30: ratio(sumBy(list,'rell30'), sumBy(list,'atendRell30')),
+      pRell24: ratio(sumBy(list,'rell24'), sumBy(list,'atendRell24')),
+      pShortCall: ratio(sumBy(list,'shortCall'), atendidas),
+      tmo: ratio(sumBy(list,'tmo'), atendidas),
+      encuestas: sumBy(list,'q'),
+      pNps: ratio(sumBy(list,'nps_pond'), sumBy(list,'pond')),
+      pSol: ratio(sumBy(list,'resolCalc'), sumBy(list,'q')),
+      pHold: ratio(sumBy(list,'hold'), sumBy(list,'duracion')),
+      pTipif: ratio(sumBy(list,'tipificaciones'), atendidas),
+      csat: ratio(sumBy(list,'csatNum'), sumBy(list,'csatDen'))
+    };
+  }
+
+  function groupBy(list, key){
+    var map = {};
+    list.forEach(function(r){
+      var k = r[key] || 'Sin dato';
+      if(!map[k]) map[k] = [];
+      map[k].push(r);
+    });
+    return map;
+  }
+
+  // ---------------- Filters ----------------
+  var TOOLBAR_SCOPES = {
+    plat:       { btn:'msPlatBtn', options:'msPlatOptions', search:'msPlatSearch' },
+    jefe:       { btn:'msJefeBtn', options:'msJefeOptions', search:'msJefeSearch' },
+    programa:   { btn:'msProgBtn', options:'msProgOptions', search:'msProgSearch' },
+    estado:     { btn:'msEstadoBtn', options:'msEstadoOptions', search:'msEstadoSearch' },
+    antiguedad: { btn:'msAntBtn', options:'msAntOptions', search:'msAntSearch' },
+    mes:        { btn:'msMesBtn', options:'msMesOptions', search:'msMesSearch' }
+  };
+
+  function populateFilterOptions(){
+    var plats = {}, jefes = {}, programas = {}, estados = {}, antiguedades = {}, meses = {};
+    STATE.raw.forEach(function(r){
+      if(r.plataforma) plats[r.plataforma] = true;
+      if(r.jefe) jefes[r.jefe] = true;
+      if(r.programa) programas[r.programa] = true;
+      if(r.estado) estados[r.estado] = true;
+      if(r.antiguedad) antiguedades[r.antiguedad] = true;
+      if(r.mes) meses[r.mes] = true;
+    });
+    Object.keys(TOOLBAR_SCOPES).forEach(function(scope){
+      var pool = { plat:plats, jefe:jefes, programa:programas, estado:estados, antiguedad:antiguedades, mes:meses }[scope];
+      STATE.filters[scope] = new Set(Array.from(STATE.filters[scope]).filter(function(v){ return pool[v]; }));
+    });
+    buildMultiSelect('msPlatOptions', Object.keys(plats).sort(), 'plat');
+    buildMultiSelect('msJefeOptions', Object.keys(jefes).sort(), 'jefe');
+    buildMultiSelect('msProgOptions', Object.keys(programas).sort(), 'programa');
+    buildMultiSelect('msEstadoOptions', Object.keys(estados).sort(), 'estado');
+    buildMultiSelect('msAntOptions', Object.keys(antiguedades).sort(), 'antiguedad');
+    var mesesOrdenados = Object.keys(meses).sort(function(a,b){ return MONTH_ABBR.indexOf(a) - MONTH_ABBR.indexOf(b); });
+    buildMultiSelect('msMesOptions', mesesOrdenados, 'mes');
+    Object.keys(TOOLBAR_SCOPES).forEach(updateMsButtonLabel);
+  }
+
+  function buildMultiSelect(containerId, values, scope){
+    var container = document.getElementById(containerId);
+    var selected = STATE.filters[scope];
+    container.innerHTML = values.map(function(v,i){
+      var id = scope+'_opt_'+i;
+      var checkedAttr = selected.has(v) ? ' checked' : '';
+      return '<label for="'+id+'" data-searchtext="'+esc(normalize(v))+'"><input type="checkbox" id="'+id+'" value="'+esc(v)+'" data-scope="'+scope+'"'+checkedAttr+'> '+esc(v)+'</label>';
+    }).join('');
+    container.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        var set = STATE.filters[scope];
+        if(cb.checked) set.add(cb.value); else set.delete(cb.value);
+        updateMsButtonLabel(scope);
+        applyFilters();
+      });
+    });
+  }
+
+  function filterMsOptions(container, query){
+    var nq = normalize(query);
+    Array.prototype.forEach.call(container.querySelectorAll('label'), function(lbl){
+      var match = !nq || lbl.getAttribute('data-searchtext').indexOf(nq) !== -1;
+      lbl.classList.toggle('ms-hidden', !match);
+    });
+  }
+
+  var TOOLBAR_FALLBACK = { plat:'Todas', jefe:'Todos', programa:'Todos', estado:'Todos', antiguedad:'Todas', mes:'Todos' };
+  function updateMsButtonLabel(scope){
+    var info = TOOLBAR_SCOPES[scope];
+    var btn = document.getElementById(info.btn);
+    var set = STATE.filters[scope];
+    if(set.size === 0){ btn.textContent = TOOLBAR_FALLBACK[scope]; btn.classList.remove('has-selection'); }
+    else if(set.size === 1){ btn.textContent = Array.from(set)[0]; btn.classList.add('has-selection'); }
+    else { btn.textContent = set.size + ' seleccionadas'; btn.classList.add('has-selection'); }
+  }
+
+  function setupMultiSelects(){
+    function bindToggle(btnId, panelId){
+      var btn = document.getElementById(btnId), panel = document.getElementById(panelId);
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var wasOpen = panel.classList.contains('open');
+        document.querySelectorAll('.ms-panel.open').forEach(function(p){ p.classList.remove('open'); });
+        if(!wasOpen) panel.classList.add('open');
+      });
+    }
+    bindToggle('msPlatBtn','msPlatPanel');
+    bindToggle('msJefeBtn','msJefePanel');
+    bindToggle('msProgBtn','msProgPanel');
+    bindToggle('msEstadoBtn','msEstadoPanel');
+    bindToggle('msAntBtn','msAntPanel');
+    bindToggle('msMesBtn','msMesPanel');
+    document.addEventListener('click', function(e){
+      if(!e.target.closest('.msfield')) document.querySelectorAll('.ms-panel.open').forEach(function(p){ p.classList.remove('open'); });
+    });
+    document.querySelectorAll('#toolbar .ms-action').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var scope = btn.getAttribute('data-scope');
+        var info = TOOLBAR_SCOPES[scope];
+        STATE.filters[scope] = new Set();
+        document.querySelectorAll('#'+info.options+' input[type=checkbox]').forEach(function(b){ b.checked = false; });
+        var s = document.getElementById(info.search);
+        if(s){ s.value=''; filterMsOptions(document.getElementById(info.options), ''); }
+        updateMsButtonLabel(scope);
+        applyFilters();
+      });
+    });
+    Object.keys(TOOLBAR_SCOPES).forEach(function(scope){
+      var info = TOOLBAR_SCOPES[scope];
+      var input = document.getElementById(info.search);
+      if(!input) return;
+      input.addEventListener('input', function(){ filterMsOptions(document.getElementById(info.options), input.value); });
+      input.addEventListener('click', function(e){ e.stopPropagation(); });
+    });
+  }
+
+  function clearAllFilters(){
+    Object.keys(TOOLBAR_SCOPES).forEach(function(scope){ STATE.filters[scope] = new Set(); });
+    document.querySelectorAll('.ms-options input[type=checkbox]').forEach(function(b){ b.checked=false; });
+    document.querySelectorAll('.ms-search').forEach(function(s){ s.value=''; });
+    document.querySelectorAll('.ms-options label').forEach(function(l){ l.classList.remove('ms-hidden'); });
+    Object.keys(TOOLBAR_SCOPES).forEach(updateMsButtonLabel);
+    document.getElementById('fFrom').value='';
+    document.getElementById('fTo').value='';
+    applyFilters();
+  }
+
+  function applyFilters(){
+    var platSet = STATE.filters.plat, jefeSet = STATE.filters.jefe;
+    var progSet = STATE.filters.programa, estadoSet = STATE.filters.estado, antSet = STATE.filters.antiguedad;
+    var mesSet = STATE.filters.mes;
+    var fromEl = document.getElementById('fFrom'), toEl = document.getElementById('fTo');
+    var from = fromEl.value, to = toEl.value;
+    fromEl.classList.toggle('active-filter', !!from);
+    toEl.classList.toggle('active-filter', !!to);
+    STATE.filtered = STATE.raw.filter(function(r){
+      if(platSet.size && !platSet.has(r.plataforma)) return false;
+      if(jefeSet.size && !jefeSet.has(r.jefe)) return false;
+      if(progSet.size && !progSet.has(r.programa)) return false;
+      if(estadoSet.size && !estadoSet.has(r.estado)) return false;
+      if(antSet.size && !antSet.has(r.antiguedad)) return false;
+      if(mesSet.size && !mesSet.has(r.mes)) return false;
+      if((from||to) && r.fecha){
+        var d = r.fecha.substring(0,10);
+        if(from && d < from) return false;
+        if(to && d > to) return false;
+      }
+      return true;
+    });
+    document.getElementById('countPill').textContent = fmtInt(STATE.filtered.length) + ' registros';
+    document.getElementById('filterEmptyBanner').classList.toggle('show', STATE.raw.length>0 && STATE.filtered.length===0);
+    renderAll();
+  }
+
+  // ---------------- Rendering ----------------
+  function renderKPIGrid(){
+    var kpis = computeKPIs(STATE.filtered);
+    var singlePlat = STATE.filters.plat.size === 1 ? Array.from(STATE.filters.plat)[0] : null;
+    var activeMonth = getActiveObjectivesMonth();
+    var grid = document.getElementById('kpiGrid');
+    grid.innerHTML = KPI_DEFS.map(function(def){
+      var val = kpis[def.key];
+      var objText = '';
+      var badge = '';
+      if(def.objKey && singlePlat && activeMonth){
+        var obj = getObjective(singlePlat, def.objKey, activeMonth);
+        if(obj !== null && val !== null){
+          objText = '<div class="k-obj">Objetivo: '+ (obj*100).toFixed(1) +'%</div>';
+          var isGood = def.higherBetter ? (val >= obj) : (val <= obj);
+          badge = '<span class="k-badge '+(isGood?'good':'bad')+'">'+(isGood?'OK':'FUERA')+'</span>';
+        }
+      }
+      return '<div class="card kpi-tile">'+badge+
+        '<div class="k-label">'+esc(def.label)+'</div>'+
+        '<div class="k-value">'+fmtKpi(val, def)+'</div>'+
+        objText+
+        '</div>';
+    }).join('');
+  }
+
+  function renderObjectivesStrip(){
+    var section = document.getElementById('objSection');
+    var strip = document.getElementById('objStrip');
+    var plats = STATE.filters.plat.size ? Array.from(STATE.filters.plat) : [];
+    if(!plats.length){ section.style.display = 'none'; return; }
+    var activeMonth = getActiveObjectivesMonth();
+    section.style.display = '';
+    document.getElementById('objMonthNote').textContent = activeMonth
+      ? (STATE.filters.mes.size===1 ? ('Mes seleccionado: '+activeMonth) : ('Mostrando el mes más reciente disponible: '+activeMonth+' — selecciona un mes en el filtro para ver otro periodo.'))
+      : 'No hay objetivos cargados para ningún mes.';
+    strip.innerHTML = plats.map(function(p){
+      var o = activeMonth ? (STATE.objectivesByMonth[activeMonth]||{})[p] : null;
+      if(!o) return '<div class="obj-chip"><div class="oc-plat">'+esc(p)+'</div><div class="oc-row"><span>Sin objetivos cargados para '+esc(activeMonth||'este mes')+'</span></div></div>';
+      function item(label, key){
+        var v = o[key];
+        if(v === null || v === undefined) return '';
+        var display = (typeof v === 'number') ? (v*100).toFixed(1)+'%' : esc(v);
+        return '<div class="oc-item"><span class="oc-item-label">'+label+'</span><b>'+display+'</b></div>';
+      }
+      return '<div class="obj-chip obj-chip-h">'+
+        '<div class="oc-plat">'+esc(p)+'</div>'+
+        '<div class="oc-items">'+
+          item('% Improd. obj.', 'OBJ IMP')+
+          item('Rellamada 72h obj.', 'OBJ RELL')+
+          item('Rellamada 30m obj.', 'OBJ RELL 30 MIN')+
+          item('Transferencia obj.', 'OBJ')+
+        '</div>'+
+        '</div>';
+    }).join('');
+  }
+
+  function buildSeries(groupKeyFn){
+    var groups = {};
+    STATE.filtered.forEach(function(r){
+      if(!r.fecha) return;
+      var day = r.fecha.substring(0,10);
+      var key = groupKeyFn(r, day);
+      if(key===null || key===undefined || key==='') return;
+      if(!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    });
+    var keys = Object.keys(groups);
+    keys.sort(function(a,b){
+      var na = parseInt(String(a).replace(/\D+/g,''), 10);
+      var nb = parseInt(String(b).replace(/\D+/g,''), 10);
+      if(!isNaN(na) && !isNaN(nb) && na!==nb) return na - nb;
+      return a.localeCompare(b);
+    });
+    return { keys:keys, groups:groups };
+  }
+
+  function datalabelsConfig(def){
+    return {
+      align:'top', anchor:'end', clamp:true,
+      color: COLORS.navy, font:{ family:'Inter', size:10, weight:'700' },
+      formatter: function(value){ return fmtKpi(value, def); }
+    };
+  }
+
+  function renderLineChart(canvasId, chartRef, labels, values, def){
+    var ctx = document.getElementById(canvasId).getContext('2d');
+    if(chartRef.chart) chartRef.chart.destroy();
+    chartRef.chart = new Chart(ctx, {
+      type:'line',
+      data:{
+        labels: labels,
+        datasets:[{
+          label: def.label,
+          data: values,
+          borderColor: COLORS.accent,
+          backgroundColor: 'rgba(46,107,230,0.08)',
+          fill:true,
+          tension:0.4,
+          pointRadius:3,
+          pointBackgroundColor: COLORS.accent,
+          spanGaps:true
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        layout:{ padding:{ top:18 } },
+        plugins:{
+          legend:{ display:false },
+          datalabels: datalabelsConfig(def)
+        },
+        scales:{
+          x:{ grid:{display:false}, ticks:{font:{family:'Inter', size:10.5}} },
+          y:{ grid:{color:'#EEF1F6'}, ticks:{
+            font:{family:'Inter', size:10.5},
+            callback:function(v){ return fmtKpi(v, def); }
+          } }
+        }
+      }
+    });
+  }
+
+  var chartRefs = { dia:{chart:null}, semana:{chart:null} };
+
+  function renderEvolutivo(){
+    var kpiKey = document.getElementById('kpiSelect').value;
+    var def = KPI_BY_KEY[kpiKey];
+
+    var daily = buildSeries(function(r, day){ return day; });
+    var dailyValues = daily.keys.map(function(d){ return computeKPIs(daily.groups[d])[kpiKey]; });
+    renderLineChart('chartEvolutivoDia', chartRefs.dia, daily.keys.map(fmtDateOnly), dailyValues, def);
+
+    var weekly = buildSeries(function(r){ return r.semana; });
+    var weeklyValues = weekly.keys.map(function(w){ return computeKPIs(weekly.groups[w])[kpiKey]; });
+    renderLineChart('chartEvolutivoSemana', chartRefs.semana, weekly.keys, weeklyValues, def);
+  }
+
+  function sortRows(rows, sort){
+    rows.sort(function(a,b){
+      var av = sort.key==='agente' ? a.agente : a[sort.key];
+      var bv = sort.key==='agente' ? b.agente : b[sort.key];
+      if(av===null||av===undefined) av = sort.dir>0 ? Infinity : -Infinity;
+      if(bv===null||bv===undefined) bv = sort.dir>0 ? Infinity : -Infinity;
+      if(typeof av === 'string') return sort.dir * av.localeCompare(bv);
+      return sort.dir * (av - bv);
+    });
+    return rows;
+  }
+
+  function renderAgentTable(){
+    var byAgent = groupBy(STATE.filtered, 'agente');
+    var rows = Object.keys(byAgent).map(function(ag){
+      var k = computeKPIs(byAgent[ag]);
+      k.agente = ag;
+      return k;
+    });
+    sortRows(rows, STATE.sort);
+    var tbody = document.querySelector('#tblAgentes tbody');
+    if(!rows.length){
+      tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:var(--slate-light);padding:24px;">Sin datos</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(function(r){
+      return '<tr>'+
+        '<td class="name-cell">'+esc(r.agente)+'</td>'+
+        '<td>'+fmtKpi(r.atendidas, KPI_BY_KEY.atendidas)+'</td>'+
+        '<td>'+fmtKpi(r.pTransfer, KPI_BY_KEY.pTransfer)+'</td>'+
+        '<td>'+fmtKpi(r.pRell72, KPI_BY_KEY.pRell72)+'</td>'+
+        '<td>'+fmtKpi(r.pRell30, KPI_BY_KEY.pRell30)+'</td>'+
+        '<td>'+fmtKpi(r.pRell24, KPI_BY_KEY.pRell24)+'</td>'+
+        '<td>'+fmtKpi(r.pShortCall, KPI_BY_KEY.pShortCall)+'</td>'+
+        '<td>'+fmtKpi(r.tmo, KPI_BY_KEY.tmo)+'</td>'+
+        '<td>'+fmtKpi(r.encuestas, KPI_BY_KEY.encuestas)+'</td>'+
+        '<td>'+fmtKpi(r.pNps, KPI_BY_KEY.pNps)+'</td>'+
+        '<td>'+fmtKpi(r.pSol, KPI_BY_KEY.pSol)+'</td>'+
+        '<td>'+fmtKpi(r.pHold, KPI_BY_KEY.pHold)+'</td>'+
+        '<td>'+fmtKpi(r.pTipif, KPI_BY_KEY.pTipif)+'</td>'+
+        '<td>'+fmtKpi(r.csat, KPI_BY_KEY.csat)+'</td>'+
+        '</tr>';
+    }).join('');
+  }
+
+  function setupSortableHeaders(){
+    document.querySelectorAll('#tblAgentes thead th').forEach(function(th){
+      th.addEventListener('click', function(){
+        var key = th.getAttribute('data-key');
+        if(STATE.sort.key === key) STATE.sort.dir *= -1;
+        else { STATE.sort.key = key; STATE.sort.dir = key==='agente' ? 1 : -1; }
+        renderAgentTable();
+      });
+    });
+  }
+
+  function setupKpiSelect(){
+    var sel = document.getElementById('kpiSelect');
+    sel.innerHTML = KPI_DEFS.map(function(d){ return '<option value="'+d.key+'">'+esc(d.label)+'</option>'; }).join('');
+    sel.value = 'pRell72';
+    sel.addEventListener('change', renderEvolutivo);
+  }
+
+  function renderAll(){
+    safe('kpi grid', renderKPIGrid);
+    safe('objetivos', renderObjectivesStrip);
+    safe('evolutivo', renderEvolutivo);
+    safe('tabla agentes', renderAgentTable);
+  }
+  function safe(name, fn){ try{ fn(); }catch(e){ console.error('Error en '+name+':', e); } }
+
+  // ---------------- Load / connect (version nube: lee un JSON ya procesado) ----------------
+  var loadRequestToken = 0;
+  var DATA_JSON_PATH = 'improductivos-data.json';
+
+  function loadFromFile(silent){
+    var myToken = ++loadRequestToken;
+    return fetch(encodeURI(DATA_JSON_PATH), { cache:'no-store' })
+      .then(function(res){
+        if(!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function(data){
+        if(!data || !Array.isArray(data.records) || !data.records.length){
+          throw new Error('El archivo de datos está vacío o no tiene el formato esperado.');
+        }
+        if(myToken !== loadRequestToken) return false;
+        STATE.raw = data.records;
+        STATE.objectivesByMonth = data.objectivesByMonth || {};
+        STATE.lastLoadErrors = [];
+        STATE.lastFileName = DATA_JSON_PATH;
+        STATE.autoConnected = true;
+        initFromRaw();
+        return true;
+      })
+      .catch(function(err){
+        if(myToken === loadRequestToken) STATE.autoConnected = false;
+        if(!silent) console.warn('No se pudo cargar "'+DATA_JSON_PATH+'": ' + err.message);
+        updateDemoBanner();
+        return false;
+      });
+  }
+
+  function connectWithRetriesPromise(attemptsLeft, delayMs){
+    return loadFromFile(true).then(function(ok){
+      if(ok) return true;
+      if(attemptsLeft > 1){
+        return new Promise(function(resolve){
+          setTimeout(function(){ resolve(connectWithRetriesPromise(attemptsLeft-1, delayMs)); }, delayMs);
+        });
+      }
+      updateDemoBanner();
+      return false;
+    });
+  }
+
+  function updateDemoBanner(){
+    var banner = document.getElementById('demoWarningBanner');
+    banner.classList.toggle('show', !STATE.autoConnected && STATE.raw.length===0);
+  }
+
+  function initFromRaw(){
+    populateFilterOptions();
+    updateStatus();
+    applyFilters();
+    updateDemoBanner();
+  }
+
+  function updateStatus(){
+    var el = document.getElementById('dataStatus');
+    var maxFecha = null;
+    STATE.raw.forEach(function(r){ if(r.fecha && (!maxFecha || r.fecha > maxFecha)) maxFecha = r.fecha; });
+    var lastText = maxFecha ? (' · último registro: ' + fmtDateOnly(maxFecha.substring(0,10))) : '';
+    el.textContent = fmtInt(STATE.raw.length) + ' registros cargados' + lastText;
+    document.getElementById('footStamp').textContent = 'Actualizado ' + new Date().toLocaleString('es-PE');
+
+    var errBanner = document.getElementById('fileErrorBanner');
+    if(errBanner){
+      if(STATE.lastLoadErrors && STATE.lastLoadErrors.length){
+        errBanner.textContent = '⚠️ No se pudieron leer estos archivos: ' + STATE.lastLoadErrors.join(' · ');
+        errBanner.classList.add('show');
+      } else {
+        errBanner.classList.remove('show');
+      }
+    }
+  }
+
+  function setupRefreshButton(){
+    var btn = document.getElementById('btnRefresh');
+    btn.addEventListener('click', function(){
+      btn.classList.add('loading'); btn.disabled = true;
+      loadFromFile(false).then(function(ok){
+        btn.classList.remove('loading'); btn.disabled = false;
+        if(!ok){
+          alert('No se pudo leer "' + DATA_JSON_PATH + '".\n\nPosibles causas:\n· El sitio se acaba de desplegar y todavía no termina — espera un minuto y reintenta.\n· No se ha corrido el script que sube los datos más recientes.\n· Problema temporal de conexión.');
+        }
+      });
+    });
+    var retryBtn = document.getElementById('btnRetryConnection');
+    retryBtn.addEventListener('click', function(){
+      retryBtn.disabled = true; retryBtn.textContent = 'Conectando…';
+      connectWithRetriesPromise(4, 1200).then(function(){
+        retryBtn.disabled = false; retryBtn.textContent = 'Reintentar conexión';
+      });
+    });
+  }
+
+  function setupFilters(){
+    ['fFrom','fTo'].forEach(function(id){ document.getElementById(id).addEventListener('change', applyFilters); });
+    document.getElementById('btnResetFilters').addEventListener('click', clearAllFilters);
+    document.getElementById('btnClearFromBanner').addEventListener('click', clearAllFilters);
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    if(typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
+    setupKpiSelect();
+    setupFilters();
+    setupMultiSelects();
+    setupSortableHeaders();
+    setupRefreshButton();
+    connectWithRetriesPromise(6, 1500);
+    setInterval(function(){ loadFromFile(true); }, AUTO_REFRESH_MINUTES * 60 * 1000);
+    window.DEBUG_KPI_STATE = STATE;
+  });
+})();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evolutivo por Supervisor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-deep:#0B1B36; --navy-mid:#15294D; --navy-soft:#1E3A66;
+    --ink:#1B2436; --slate:#5B6980; --slate-light:#8A96AA; --bg:#F3F5F9; --card:#FFFFFF; --border:#E4E8F0;
+    --accent:#2E6BE6; --radius:14px;
+    --shadow: 0 1px 2px rgba(11,27,54,0.04), 0 8px 24px rgba(11,27,54,0.06);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--ink); font-family:'Inter',sans-serif; -webkit-font-smoothing:antialiased;}
+  body{padding-bottom:80px;}
+  h1,h2,.display{font-family:'Sora',sans-serif;}
+
+  header.topbar{
+    background:linear-gradient(135deg, var(--navy-deep), var(--navy-mid) 60%, var(--navy-soft));
+    color:#fff; padding:26px 36px 30px; min-height:120px; position:relative; overflow:hidden;
+  }
+  header.topbar::before{
+    content:""; position:absolute; inset:0;
+    background-image:
+      radial-gradient(circle at 88% -10%, rgba(255,255,255,0.10), transparent 45%),
+      radial-gradient(circle at 15% 120%, rgba(46,107,230,0.25), transparent 45%);
+    pointer-events:none;
+  }
+  .topbar-inner{position:relative; display:flex; justify-content:space-between; align-items:flex-end; gap:24px; flex-wrap:wrap; max-width:1600px; margin:0 auto;}
+  .brand-eyebrow{font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#8FB0F5; margin-bottom:8px;}
+  .brand-title{font-size:26px; font-weight:700; letter-spacing:-0.01em;}
+  .brand-sub{color:#B7C4DE; font-size:13.5px; margin-top:6px; max-width:580px; line-height:1.5;}
+  .btn-ghost{
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); color:#fff;
+    padding:10px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer;
+    display:inline-flex; align-items:center; gap:8px; font-family:'Inter',sans-serif;
+  }
+  .btn-ghost:hover{background:rgba(255,255,255,0.16);}
+  .btn-ghost svg{width:15px; height:15px;}
+  .btn-ghost.loading svg{animation:spin .8s linear infinite;}
+  @keyframes spin{from{transform:rotate(0deg);} to{transform:rotate(360deg);}}
+  .data-status{font-size:11.5px; color:#8FB0F5; margin-top:8px; font-family:'IBM Plex Mono',monospace;}
+
+  main{max-width:1600px; margin:0 auto; padding:28px 36px 0;}
+  .toolbar{
+    display:flex; gap:12px; flex-wrap:wrap; align-items:center;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 18px; margin-top:-46px; position:relative; z-index:5; box-shadow:var(--shadow);
+  }
+  .toolbar label{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--slate); font-weight:600; display:block; margin-bottom:4px;}
+  .toolbar input[type=date]{border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:13px; background:#fff;}
+  .toolbar input[type=date].active-filter{border-color:var(--accent); background:#EEF3FE;}
+  .toolbar .field{display:flex; flex-direction:column;}
+  .toolbar .spacer{flex:1;}
+  .toolbar .count-pill{background:var(--bg); border:1px solid var(--border); border-radius:999px; padding:8px 14px; font-size:12.5px; font-weight:600; color:var(--navy-mid); font-family:'IBM Plex Mono',monospace;}
+  .toolbar button.reset-filters{border:1px solid var(--border); background:#fff; color:var(--slate); border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:600; cursor:pointer;}
+  .toolbar button.reset-filters:hover{color:#D9473F; border-color:#D9473F;}
+
+  .msfield{position:relative;}
+  .ms-btn{
+    border:1px solid var(--border); border-radius:8px; padding:8px 32px 8px 10px; font-size:13px;
+    color:var(--ink); background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="%235B6980"><path d="M5.5 7.5l4.5 5 4.5-5z"/></svg>') no-repeat right 8px center; background-size:14px;
+    min-width:160px; text-align:left; cursor:pointer;
+  }
+  .ms-btn.has-selection{border-color:var(--accent); color:var(--accent); font-weight:600;}
+  .ms-panel{
+    position:absolute; top:calc(100% + 6px); left:0; min-width:230px; max-height:280px; overflow-y:auto;
+    background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow);
+    padding:8px; z-index:30; display:none;
+  }
+  .ms-panel.open{display:block;}
+  .ms-search{width:100%; box-sizing:border-box; padding:7px 10px; margin-bottom:8px; border:1px solid var(--border); border-radius:7px; font-size:12.5px;}
+  .ms-actions{display:flex; gap:6px; padding:2px 4px 8px; margin-bottom:6px; border-bottom:1px solid var(--border);}
+  .ms-action{border:none; background:var(--bg); color:var(--navy-mid); font-size:11.5px; font-weight:600; padding:5px 10px; border-radius:6px; cursor:pointer;}
+  .ms-options label{display:flex; align-items:center; gap:9px; padding:7px 8px; border-radius:6px; font-size:13px; cursor:pointer;}
+  .ms-options label:hover{background:var(--bg);}
+  .ms-options label.ms-hidden{display:none;}
+  .ms-options input[type=checkbox]{width:15px; height:15px; accent-color:var(--accent);}
+
+  section{margin-top:24px;}
+  .section-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; gap:12px; flex-wrap:wrap;}
+  .section-head h2{font-size:16px; font-weight:700; letter-spacing:-0.01em;}
+  .section-head .section-note{font-size:12px; color:var(--slate-light);}
+  .eyebrow{font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.12em; color:var(--accent); font-weight:600; margin-bottom:4px; display:block;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);}
+
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  thead th{
+    text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--slate);
+    font-weight:700; padding:10px 9px; border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  tbody td{padding:9px; border-bottom:1px solid var(--border); vertical-align:middle; white-space:nowrap;}
+  .rank-table-wrap{max-height:640px; overflow-y:auto; padding:6px 10px 14px;}
+
+  tr.tree-row{cursor:default;}
+  tr.tree-row[data-haschildren="true"]{cursor:pointer;}
+  tr.tree-row[data-haschildren="true"]:hover{background:#F8FAFD;}
+  tr.level-0{font-weight:700; background:#FAFBFD;}
+  tr.level-1{background:#FCFDFE;}
+  tr.level-1 td{color:var(--slate);}
+  tr.level-1 .name-cell{color:var(--ink); font-weight:600;}
+  tr.level-2 td{color:var(--slate-light); font-size:12px;}
+  tr.level-2 .name-cell{color:var(--slate);}
+  .name-cell{display:flex; align-items:center; gap:8px;}
+  .tree-toggle{
+    display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; flex-shrink:0;
+    color:var(--accent); font-size:11px; transition:transform .15s ease;
+  }
+  .tree-toggle-spacer{display:inline-block; width:16px; flex-shrink:0;}
+
+  .filter-empty-banner{
+    display:none; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    max-width:1600px; margin:14px auto 0; padding:12px 18px; background:#FEF3E2; border:1px solid #F6D9A8;
+    color:#8A5A0F; border-radius:10px; font-size:13px;
+  }
+  .filter-empty-banner.show{display:flex;}
+  .filter-empty-banner button{background:#fff; border:1px solid #F0C583; color:#8A5A0F; font-weight:700; font-size:12.5px; padding:7px 14px; border-radius:8px; cursor:pointer;}
+
+  .demo-warning-banner{
+    display:none; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    max-width:1600px; margin:14px auto 0; padding:14px 18px; background:#FBE9E8; border:1.5px solid #E6A6A2;
+    color:#8A2A24; border-radius:10px; font-size:13.5px; font-weight:600;
+  }
+  .demo-warning-banner.show{display:flex;}
+  .demo-warning-banner button{background:#fff; border:1px solid #E6A6A2; color:#8A2A24; font-weight:700; font-size:12.5px; padding:8px 16px; border-radius:8px; cursor:pointer;}
+
+  ::-webkit-scrollbar{width:8px; height:8px;}
+  ::-webkit-scrollbar-thumb{background:#D3DAE6; border-radius:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div>
+      <span class="brand-eyebrow">ABAI · Operaciones Movistar</span>
+      <h1 class="brand-title">Evolutivo por Supervisor</h1>
+      <p class="brand-sub">Clic en un supervisor para ver su evolución mes a mes; clic en un mes para ver el detalle por semana.</p>
+    </div>
+    <div style="text-align:right;">
+      <button class="btn-ghost" id="btnRefresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-2.64-6.36"/><path d="M21 4v6h-6"/></svg>
+        Actualizar datos
+      </button>
+      <div class="data-status" id="dataStatus">—</div>
+    </div>
+  </div>
+</header>
+
+<div class="demo-warning-banner" id="demoWarningBanner">
+  <span>⚠️ No se pudieron cargar los datos. Verifica que el servidor local esté activo.</span>
+  <button type="button" id="btnRetryConnection">Reintentar conexión</button>
+</div>
+
+<div class="demo-warning-banner" id="fileErrorBanner" style="background:#FEF3E2; border-color:#F6D9A8; color:#8A5A0F;"></div>
+
+<main>
+
+  <div class="toolbar" id="toolbar">
+    <div class="field msfield">
+      <label>Plataforma</label>
+      <button type="button" class="ms-btn" id="msPlatBtn">Todas</button>
+      <div class="ms-panel" id="msPlatPanel">
+        <input type="text" class="ms-search" id="msPlatSearch" placeholder="Buscar...">
+        <div class="ms-actions"><button type="button" class="ms-action" data-scope="plat">Limpiar selección</button></div>
+        <div class="ms-options" id="msPlatOptions"></div>
+      </div>
+    </div>
+    <div class="field msfield">
+      <label>Jefe directo</label>
+      <button type="button" class="ms-btn" id="msJefeBtn">Todos</button>
+      <div class="ms-panel" id="msJefePanel">
+        <input type="text" class="ms-search" id="msJefeSearch" placeholder="Buscar...">
+        <div class="ms-actions"><button type="button" class="ms-action" data-scope="jefe">Limpiar selección</button></div>
+        <div class="ms-options" id="msJefeOptions"></div>
+      </div>
+    </div>
+    <div class="field msfield">
+      <label>Programa</label>
+      <button type="button" class="ms-btn" id="msProgBtn">Todos</button>
+      <div class="ms-panel" id="msProgPanel">
+        <input type="text" class="ms-search" id="msProgSearch" placeholder="Buscar...">
+        <div class="ms-actions"><button type="button" class="ms-action" data-scope="programa">Limpiar selección</button></div>
+        <div class="ms-options" id="msProgOptions"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Desde</label>
+      <input type="date" id="fFrom">
+    </div>
+    <div class="field">
+      <label>Hasta</label>
+      <input type="date" id="fTo">
+    </div>
+    <button class="reset-filters" id="btnResetFilters">Limpiar filtros</button>
+    <div class="spacer"></div>
+    <div class="count-pill" id="countPill">0 registros</div>
+  </div>
+
+  <div class="filter-empty-banner" id="filterEmptyBanner">
+    <span>No hay datos para los filtros seleccionados.</span>
+    <button type="button" id="btnClearFromBanner">Limpiar filtros</button>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <div><span class="eyebrow">Comparativo</span><h2>Supervisor → Mes → Semana</h2></div>
+      <span class="section-note">Clic en una fila con flecha para expandir o contraer</span>
+    </div>
+    <div class="card">
+      <div class="rank-table-wrap">
+        <table id="tblSupervisor">
+          <thead><tr>
+            <th>Supervisor / Mes / Semana</th>
+            <th>Ll. Atendidas</th>
+            <th>% Transfer.</th>
+            <th>% Rell 72h</th>
+            <th>% Rell 30m</th>
+            <th>% Rell 24h</th>
+            <th>% ShortCall</th>
+            <th>TMO</th>
+            <th>Encuestas</th>
+            <th>% NPS</th>
+            <th>% SOL</th>
+            <th>% Hold</th>
+            <th>% Tipif.</th>
+            <th>CSAT</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer style="max-width:1600px; margin:40px auto 0; padding:0 36px; color:var(--slate-light); font-size:11.5px; display:flex; justify-content:space-between;">
+  <span>Evolutivo por Supervisor — generado a partir de los archivos de Improductivos.</span>
+  <span id="footStamp"></span>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  // ============================================================================
+  // CONFIGURACIÓN
+  // ============================================================================
+  var AUTO_REFRESH_MINUTES = 5;
+  var MONTH_ABBR = ['Ene.','Feb.','Mar.','Abr.','May.','Jun.','Jul.','Ago.','Sep.','Oct.','Nov.','Dic.'];
+  // ============================================================================
+
+  var KPI_DEFS = [
+    { key:'atendidas',  label:'Ll. Atendidas',     fmt:'int'  },
+    { key:'pTransfer',  label:'% Transferencia',   fmt:'pct'  },
+    { key:'pRell72',    label:'% Rellamada 72h',   fmt:'pct'  },
+    { key:'pRell30',    label:'% Rellamada 30min', fmt:'pct'  },
+    { key:'pRell24',    label:'% Rellamada 24h',   fmt:'pct'  },
+    { key:'pShortCall', label:'% Short Call',      fmt:'pct'  },
+    { key:'tmo',        label:'TMO (seg)',         fmt:'num1' },
+    { key:'encuestas',  label:'Encuestas',         fmt:'int'  },
+    { key:'pNps',       label:'% NPS',             fmt:'pctS' },
+    { key:'pSol',       label:'% SOL',             fmt:'pct'  },
+    { key:'pHold',      label:'% Hold',            fmt:'pct'  },
+    { key:'pTipif',     label:'% Tipificación',    fmt:'pct'  },
+    { key:'csat',       label:'CSAT',              fmt:'num1' }
+  ];
+
+  var STATE = {
+    raw: [],
+    filtered: [],
+    filters: { plat: new Set(), jefe: new Set(), programa: new Set() },
+    lastFileName: null,
+    lastLoadErrors: [],
+    autoConnected: false
+  };
+  var expandedKeys = new Set();
+
+  // ---------------- Utilities ----------------
+  function esc(s){
+    if(s===null || s===undefined) return '';
+    return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; });
+  }
+  function fmtInt(n){ return Math.round(n||0).toLocaleString('es-PE'); }
+  function normalize(s){
+    return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+  }
+  function fmtDateOnly(yyyyMmDd){
+    if(!yyyyMmDd || yyyyMmDd.length < 10) return yyyyMmDd || '—';
+    return yyyyMmDd.substring(8,10)+'/'+yyyyMmDd.substring(5,7)+'/'+yyyyMmDd.substring(0,4);
+  }
+  // ---------------- Aggregation ----------------
+  function sumBy(list, field){
+    var s = 0;
+    for(var i=0;i<list.length;i++) s += (list[i][field]||0);
+    return s;
+  }
+  function ratio(num, den){ return den ? (num/den) : null; }
+
+  function computeKPIs(list){
+    var atendidas = sumBy(list,'atendidas');
+    return {
+      atendidas: atendidas,
+      pTransfer: ratio(sumBy(list,'culpTrx'), atendidas),
+      pRell72: ratio(sumBy(list,'rell72'), sumBy(list,'atendRell72')),
+      pRell30: ratio(sumBy(list,'rell30'), sumBy(list,'atendRell30')),
+      pRell24: ratio(sumBy(list,'rell24'), sumBy(list,'atendRell24')),
+      pShortCall: ratio(sumBy(list,'shortCall'), atendidas),
+      tmo: ratio(sumBy(list,'tmo'), atendidas),
+      encuestas: sumBy(list,'q'),
+      pNps: ratio(sumBy(list,'nps_pond'), sumBy(list,'pond')),
+      pSol: ratio(sumBy(list,'resolCalc'), sumBy(list,'q')),
+      pHold: ratio(sumBy(list,'hold'), sumBy(list,'duracion')),
+      pTipif: ratio(sumBy(list,'tipificaciones'), atendidas),
+      csat: ratio(sumBy(list,'csatNum'), sumBy(list,'csatDen'))
+    };
+  }
+
+  function groupBy(list, key){
+    var map = {};
+    list.forEach(function(r){
+      var k = r[key] || 'Sin dato';
+      if(!map[k]) map[k] = [];
+      map[k].push(r);
+    });
+    return map;
+  }
+
+  // ---------------- Filters ----------------
+  var TOOLBAR_SCOPES = {
+    plat:     { btn:'msPlatBtn', options:'msPlatOptions', search:'msPlatSearch' },
+    jefe:     { btn:'msJefeBtn', options:'msJefeOptions', search:'msJefeSearch' },
+    programa: { btn:'msProgBtn', options:'msProgOptions', search:'msProgSearch' }
+  };
+  var TOOLBAR_FALLBACK = { plat:'Todas', jefe:'Todos', programa:'Todos' };
+
+  function populateFilterOptions(){
+    var plats = {}, jefes = {}, programas = {};
+    STATE.raw.forEach(function(r){
+      if(r.plataforma) plats[r.plataforma] = true;
+      if(r.jefe) jefes[r.jefe] = true;
+      if(r.programa) programas[r.programa] = true;
+    });
+    Object.keys(TOOLBAR_SCOPES).forEach(function(scope){
+      var pool = { plat:plats, jefe:jefes, programa:programas }[scope];
+      STATE.filters[scope] = new Set(Array.from(STATE.filters[scope]).filter(function(v){ return pool[v]; }));
+    });
+    buildMultiSelect('msPlatOptions', Object.keys(plats).sort(), 'plat');
+    buildMultiSelect('msJefeOptions', Object.keys(jefes).sort(), 'jefe');
+    buildMultiSelect('msProgOptions', Object.keys(programas).sort(), 'programa');
+    Object.keys(TOOLBAR_SCOPES).forEach(updateMsButtonLabel);
+  }
+
+  function buildMultiSelect(containerId, values, scope){
+    var container = document.getElementById(containerId);
+    var selected = STATE.filters[scope];
+    container.innerHTML = values.map(function(v,i){
+      var id = scope+'_opt_'+i;
+      var checkedAttr = selected.has(v) ? ' checked' : '';
+      return '<label for="'+id+'" data-searchtext="'+esc(normalize(v))+'"><input type="checkbox" id="'+id+'" value="'+esc(v)+'" data-scope="'+scope+'"'+checkedAttr+'> '+esc(v)+'</label>';
+    }).join('');
+    container.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        var set = STATE.filters[scope];
+        if(cb.checked) set.add(cb.value); else set.delete(cb.value);
+        updateMsButtonLabel(scope);
+        applyFilters();
+      });
+    });
+  }
+
+  function filterMsOptions(container, query){
+    var nq = normalize(query);
+    Array.prototype.forEach.call(container.querySelectorAll('label'), function(lbl){
+      var match = !nq || lbl.getAttribute('data-searchtext').indexOf(nq) !== -1;
+      lbl.classList.toggle('ms-hidden', !match);
+    });
+  }
+
+  function updateMsButtonLabel(scope){
+    var info = TOOLBAR_SCOPES[scope];
+    var btn = document.getElementById(info.btn);
+    var set = STATE.filters[scope];
+    if(set.size === 0){ btn.textContent = TOOLBAR_FALLBACK[scope]; btn.classList.remove('has-selection'); }
+    else if(set.size === 1){ btn.textContent = Array.from(set)[0]; btn.classList.add('has-selection'); }
+    else { btn.textContent = set.size + ' seleccionados'; btn.classList.add('has-selection'); }
+  }
+
+  function setupMultiSelects(){
+    function bindToggle(btnId, panelId){
+      var btn = document.getElementById(btnId), panel = document.getElementById(panelId);
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var wasOpen = panel.classList.contains('open');
+        document.querySelectorAll('.ms-panel.open').forEach(function(p){ p.classList.remove('open'); });
+        if(!wasOpen) panel.classList.add('open');
+      });
+    }
+    bindToggle('msPlatBtn','msPlatPanel');
+    bindToggle('msJefeBtn','msJefePanel');
+    bindToggle('msProgBtn','msProgPanel');
+    document.addEventListener('click', function(e){
+      if(!e.target.closest('.msfield')) document.querySelectorAll('.ms-panel.open').forEach(function(p){ p.classList.remove('open'); });
+    });
+    document.querySelectorAll('#toolbar .ms-action').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var scope = btn.getAttribute('data-scope');
+        var info = TOOLBAR_SCOPES[scope];
+        STATE.filters[scope] = new Set();
+        document.querySelectorAll('#'+info.options+' input[type=checkbox]').forEach(function(b){ b.checked = false; });
+        var s = document.getElementById(info.search);
+        if(s){ s.value=''; filterMsOptions(document.getElementById(info.options), ''); }
+        updateMsButtonLabel(scope);
+        applyFilters();
+      });
+    });
+    Object.keys(TOOLBAR_SCOPES).forEach(function(scope){
+      var info = TOOLBAR_SCOPES[scope];
+      var input = document.getElementById(info.search);
+      if(!input) return;
+      input.addEventListener('input', function(){ filterMsOptions(document.getElementById(info.options), input.value); });
+      input.addEventListener('click', function(e){ e.stopPropagation(); });
+    });
+  }
+
+  function clearAllFilters(){
+    Object.keys(TOOLBAR_SCOPES).forEach(function(scope){ STATE.filters[scope] = new Set(); });
+    document.querySelectorAll('.ms-options input[type=checkbox]').forEach(function(b){ b.checked=false; });
+    document.querySelectorAll('.ms-search').forEach(function(s){ s.value=''; });
+    document.querySelectorAll('.ms-options label').forEach(function(l){ l.classList.remove('ms-hidden'); });
+    Object.keys(TOOLBAR_SCOPES).forEach(updateMsButtonLabel);
+    document.getElementById('fFrom').value='';
+    document.getElementById('fTo').value='';
+    applyFilters();
+  }
+
+  function applyFilters(){
+    var platSet = STATE.filters.plat, jefeSet = STATE.filters.jefe, progSet = STATE.filters.programa;
+    var fromEl = document.getElementById('fFrom'), toEl = document.getElementById('fTo');
+    var from = fromEl.value, to = toEl.value;
+    fromEl.classList.toggle('active-filter', !!from);
+    toEl.classList.toggle('active-filter', !!to);
+    STATE.filtered = STATE.raw.filter(function(r){
+      if(platSet.size && !platSet.has(r.plataforma)) return false;
+      if(jefeSet.size && !jefeSet.has(r.jefe)) return false;
+      if(progSet.size && !progSet.has(r.programa)) return false;
+      if((from||to) && r.fecha){
+        var d = r.fecha.substring(0,10);
+        if(from && d < from) return false;
+        if(to && d > to) return false;
+      }
+      return true;
+    });
+    document.getElementById('countPill').textContent = fmtInt(STATE.filtered.length) + ' registros';
+    document.getElementById('filterEmptyBanner').classList.toggle('show', STATE.raw.length>0 && STATE.filtered.length===0);
+    renderTreeTable();
+  }
+
+  // ---------------- Tree table ----------------
+  function kpiCells(kpis){
+    return KPI_DEFS.map(function(def){ return '<td>'+fmtKpi(kpis[def.key], def)+'</td>'; }).join('');
+  }
+
+  function buildTreeRows(){
+    var rows = [];
+    var byJefe = groupBy(STATE.filtered, 'jefe');
+    var jefeNames = Object.keys(byJefe).filter(function(j){ return j!=='Sin dato'; })
+      .sort(function(a,b){ return sumBy(byJefe[b],'atendidas') - sumBy(byJefe[a],'atendidas'); });
+
+    jefeNames.forEach(function(jefe){
+      var jefeRecords = byJefe[jefe];
+      var jefeKey = 'j:'+jefe;
+      rows.push({ level:0, key:jefeKey, label:jefe, kpis:computeKPIs(jefeRecords), expanded:expandedKeys.has(jefeKey), hasChildren:true });
+
+      if(expandedKeys.has(jefeKey)){
+        var byMes = groupBy(jefeRecords, 'mes');
+        var mesNames = Object.keys(byMes).filter(function(m){ return m && m!=='Sin dato'; })
+          .sort(function(a,b){ return MONTH_ABBR.indexOf(a) - MONTH_ABBR.indexOf(b); });
+
+        mesNames.forEach(function(mes){
+          var mesRecords = byMes[mes];
+          var mesKey = jefeKey + '|m:' + mes;
+          rows.push({ level:1, key:mesKey, label:mes, kpis:computeKPIs(mesRecords), expanded:expandedKeys.has(mesKey), hasChildren:true });
+
+          if(expandedKeys.has(mesKey)){
+            var bySem = groupBy(mesRecords, 'semana');
+            var semNames = Object.keys(bySem).filter(function(s){ return s && s!=='Sin dato'; })
+              .sort(function(a,b){
+                var na = parseInt(String(a).replace(/\D+/g,''),10), nb = parseInt(String(b).replace(/\D+/g,''),10);
+                if(!isNaN(na) && !isNaN(nb) && na!==nb) return na-nb;
+                return a.localeCompare(b);
+              });
+            semNames.forEach(function(sem){
+              var semKey = mesKey + '|s:' + sem;
+              rows.push({ level:2, key:semKey, label:sem, kpis:computeKPIs(bySem[sem]), expanded:false, hasChildren:false });
+            });
+          }
+        });
+      }
+    });
+    return rows;
+  }
+
+  function renderTreeTable(){
+    var rows = buildTreeRows();
+    var tbody = document.querySelector('#tblSupervisor tbody');
+    if(!rows.length){
+      tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:var(--slate-light);padding:24px;">Sin datos</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(function(row){
+      var indent = row.level * 22;
+      var toggle = row.hasChildren
+        ? '<span class="tree-toggle" style="transform:rotate('+(row.expanded?90:0)+'deg);">▸</span>'
+        : '<span class="tree-toggle-spacer"></span>';
+      return '<tr class="tree-row level-'+row.level+'" data-key="'+esc(row.key)+'" data-haschildren="'+row.hasChildren+'">'+
+        '<td class="name-cell" style="padding-left:'+(10+indent)+'px;">'+toggle+esc(row.label)+'</td>'+
+        kpiCells(row.kpis)+
+        '</tr>';
+    }).join('');
+
+    tbody.querySelectorAll('tr[data-haschildren="true"]').forEach(function(tr){
+      tr.addEventListener('click', function(){
+        var key = tr.getAttribute('data-key');
+        if(expandedKeys.has(key)) expandedKeys.delete(key); else expandedKeys.add(key);
+        renderTreeTable();
+      });
+    });
+  }
+
+  // ---------------- Load / connect ----------------
+  var loadRequestToken = 0;
+  var DATA_JSON_PATH = 'improductivos-data.json';
+
+  function loadFromFile(silent){
+    var myToken = ++loadRequestToken;
+    return fetch(encodeURI(DATA_JSON_PATH), { cache:'no-store' })
+      .then(function(res){
+        if(!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function(data){
+        if(!data || !Array.isArray(data.records) || !data.records.length){
+          throw new Error('El archivo de datos está vacío o no tiene el formato esperado.');
+        }
+        if(myToken !== loadRequestToken) return false;
+        STATE.raw = data.records;
+        STATE.lastLoadErrors = [];
+        STATE.lastFileName = DATA_JSON_PATH;
+        STATE.autoConnected = true;
+        initFromRaw();
+        return true;
+      })
+      .catch(function(err){
+        if(myToken === loadRequestToken) STATE.autoConnected = false;
+        if(!silent) console.warn('No se pudo cargar "'+DATA_JSON_PATH+'": ' + err.message);
+        updateDemoBanner();
+        return false;
+      });
+  }
+
+  function connectWithRetriesPromise(attemptsLeft, delayMs){
+    return loadFromFile(true).then(function(ok){
+      if(ok) return true;
+      if(attemptsLeft > 1){
+        return new Promise(function(resolve){
+          setTimeout(function(){ resolve(connectWithRetriesPromise(attemptsLeft-1, delayMs)); }, delayMs);
+        });
+      }
+      updateDemoBanner();
+      return false;
+    });
+  }
+
+  function updateDemoBanner(){
+    var banner = document.getElementById('demoWarningBanner');
+    banner.classList.toggle('show', !STATE.autoConnected && STATE.raw.length===0);
+  }
+
+  function initFromRaw(){
+    populateFilterOptions();
+    updateStatus();
+    applyFilters();
+    updateDemoBanner();
+  }
+
+  function updateStatus(){
+    var el = document.getElementById('dataStatus');
+    var maxFecha = null;
+    STATE.raw.forEach(function(r){ if(r.fecha && (!maxFecha || r.fecha > maxFecha)) maxFecha = r.fecha; });
+    var lastText = maxFecha ? (' · último registro: ' + fmtDateOnly(maxFecha.substring(0,10))) : '';
+    el.textContent = fmtInt(STATE.raw.length) + ' registros cargados' + lastText;
+    document.getElementById('footStamp').textContent = 'Actualizado ' + new Date().toLocaleString('es-PE');
+
+    var errBanner = document.getElementById('fileErrorBanner');
+    if(errBanner){
+      if(STATE.lastLoadErrors && STATE.lastLoadErrors.length){
+        errBanner.textContent = '⚠️ No se pudieron leer estos archivos: ' + STATE.lastLoadErrors.join(' · ');
+        errBanner.classList.add('show');
+      } else {
+        errBanner.classList.remove('show');
+      }
+    }
+  }
+
+  function setupRefreshButton(){
+    var btn = document.getElementById('btnRefresh');
+    btn.addEventListener('click', function(){
+      btn.classList.add('loading'); btn.disabled = true;
+      loadFromFile(false).then(function(ok){
+        btn.classList.remove('loading'); btn.disabled = false;
+        if(!ok){
+          alert('No se pudo leer "' + DATA_JSON_PATH + '".\n\nPosibles causas:\n· El sitio se acaba de desplegar y todavía no termina — espera un minuto y reintenta.\n· No se ha corrido el script que sube los datos más recientes.\n· Problema temporal de conexión.');
+        }
+      });
+    });
+    var retryBtn = document.getElementById('btnRetryConnection');
+    retryBtn.addEventListener('click', function(){
+      retryBtn.disabled = true; retryBtn.textContent = 'Conectando…';
+      connectWithRetriesPromise(4, 1200).then(function(){
+        retryBtn.disabled = false; retryBtn.textContent = 'Reintentar conexión';
+      });
+    });
+  }
+
+  function setupFilters(){
+    ['fFrom','fTo'].forEach(function(id){ document.getElementById(id).addEventListener('change', applyFilters); });
+    document.getElementById('btnResetFilters').addEventListener('click', clearAllFilters);
+    document.getElementById('btnClearFromBanner').addEventListener('click', clearAllFilters);
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setupFilters();
+    setupMultiSelects();
+    setupRefreshButton();
+    connectWithRetriesPromise(6, 1500);
+    setInterval(function(){ loadFromFile(true); }, AUTO_REFRESH_MINUTES * 60 * 1000);
+    window.DEBUG_SUPERVISOR_STATE = STATE;
+  });
+})();
+
+</script>
+</body>
+</html>
