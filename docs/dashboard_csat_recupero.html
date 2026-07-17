@@ -334,10 +334,9 @@
 </header>
 
 <div class="demo-warning-banner" id="demoWarningBanner">
-  <span>⚠️ No se pudieron cargar los datos (no logró conectarse a "<span id="demoWarningFile"></span>"). Puede que el sitio se acabe de desplegar — espera un minuto y reintenta.</span>
+  <span>⚠️ No estás viendo tu archivo real — el dashboard está mostrando datos de ejemplo (no logró conectarse a "<span id="demoWarningFile"></span>").</span>
   <button type="button" id="btnRetryConnection">Reintentar conexión</button>
 </div>
-
 
 
 <main>
@@ -376,6 +375,17 @@
         <div class="ms-options" id="msEstadoOptions"></div>
       </div>
     </div>
+    <div class="field msfield">
+      <label>Skill</label>
+      <button type="button" class="ms-btn" id="msSkillBtn">Todos</button>
+      <div class="ms-panel" id="msSkillPanel">
+        <input type="text" class="ms-search" id="msSkillSearch" placeholder="Buscar...">
+        <div class="ms-actions">
+          <button type="button" class="ms-action" data-scope="skill">Limpiar selección</button>
+        </div>
+        <div class="ms-options" id="msSkillOptions"></div>
+      </div>
+    </div>
     <div class="field">
       <label>Desde</label>
       <input type="date" id="fFrom">
@@ -398,10 +408,10 @@
   <section>
     <div class="kpi-row">
       <div class="card gauge-card">
-        <span class="g-label">NPS del periodo</span>
+        <span class="g-label">CSAT del periodo</span>
         <div class="gauge-wrap">
           <svg id="gaugeSvg" viewBox="0 0 240 140" width="100%"></svg>
-          <div class="gauge-num"><div class="n" id="gaugeNum">—</div><div class="l">Promotor − Detractor</div></div>
+          <div class="gauge-num"><div class="n" id="gaugeNum">—</div></div>
         </div>
         <div class="gauge-legend">
           <span><i class="dot" style="background:var(--detractor)"></i>Detractor</span>
@@ -525,7 +535,7 @@
           </div>
           <div class="profile-stats">
             <div class="pstat"><div class="pv" id="pTotal">0</div><div class="pl">Encuestas</div></div>
-            <div class="pstat"><div class="pv" id="pNps" style="color:var(--accent)">0</div><div class="pl">NPS</div></div>
+            <div class="pstat"><div class="pv" id="pNps" style="color:var(--accent)">0</div><div class="pl">CSAT</div></div>
             <div class="pstat"><div class="pv" id="pDet" style="color:var(--detractor)">0</div><div class="pl">Detractor</div></div>
             <div class="pstat"><div class="pv" id="pProm" style="color:var(--promotor)">0</div><div class="pl">Promotor</div></div>
           </div>
@@ -547,12 +557,20 @@
               <div class="ms-options" id="msAgTipoOptions"></div>
             </div>
           </div>
+          <div class="field msfield">
+            <label>Skill</label>
+            <button type="button" class="ms-btn" id="msAgSkillBtn">Todos</button>
+            <div class="ms-panel" id="msAgSkillPanel">
+              <div class="ms-actions"><button type="button" class="ms-action" id="msAgSkillClear">Limpiar selección</button></div>
+              <div class="ms-options" id="msAgSkillOptions"></div>
+            </div>
+          </div>
         </div>
         <div class="agent-records">
           <div class="rec-table-wrap">
             <table id="tblRecords">
               <thead><tr>
-                <th>Fecha</th><th>Hora</th><th>Tipo</th><th>Número de llamada</th>
+                <th>Fecha</th><th>Hora</th><th>Tipo</th><th>Número de llamada</th><th>Nota CSAT</th>
               </tr></thead>
               <tbody></tbody>
             </table>
@@ -582,12 +600,13 @@
   "use strict";
 
   // ============================================================================
-  // CONFIGURACIÓN — versión en la nube (GitHub Pages)
+  // CONFIGURACIÓN — auto-carga desde archivo local (carpeta OneDrive)
   // ------------------------------------------------------------------------
-  // Esta pagina lee "data.json", un archivo generado por push-to-github.ps1
-  // a partir de tu Excel. Cada vez que ese script corre, sube una version
-  // nueva de data.json y GitHub Pages redespliega el sitio automaticamente.
-  // El dashboard se refresca solo cada AUTO_REFRESH_MINUTES minutos.
+  // Coloca este HTML en la MISMA carpeta que el Excel (ej. tu carpeta
+  // "Proyecto CSAT" de OneDrive) y ábrelo con el servidor local
+  // (start-dashboard.bat). El dashboard leerá este archivo automáticamente
+  // y se refrescará solo cada AUTO_REFRESH_MINUTES minutos.
+  // Cambia el nombre de archivo aquí si el tuyo se llama distinto:
   var DATA_FILE_URL = 'data.json';
   var AUTO_REFRESH_MINUTES = 5;
   // ============================================================================
@@ -598,8 +617,8 @@
     raw: (typeof EMBEDDED_DATA !== 'undefined') ? EMBEDDED_DATA : [],
     filtered: [],
     sort: { jefe: {key:'total', dir:-1}, agente: {key:'total', dir:-1} },
-    filters: { prog: new Set(), jefe: new Set(), estado: new Set() }, // empty set = "todos"
-    agentFilters: { fecha: new Set(), tipo: new Set() },
+    filters: { prog: new Set(), jefe: new Set(), estado: new Set(), skill: new Set() }, // empty set = "todos"
+    agentFilters: { fecha: new Set(), tipo: new Set(), skill: new Set() },
     currentAgentRecords: [],
     currentAgentSelection: null,
     lastFileName: null,
@@ -662,27 +681,32 @@
   var TOOLBAR_SCOPES = {
     prog:   { btn: 'msProgramBtn', options: 'msProgramOptions', search: 'msProgramSearch' },
     jefe:   { btn: 'msJefeBtn', options: 'msJefeOptions', search: 'msJefeSearch' },
-    estado: { btn: 'msEstadoBtn', options: 'msEstadoOptions', search: 'msEstadoSearch' }
+    estado: { btn: 'msEstadoBtn', options: 'msEstadoOptions', search: 'msEstadoSearch' },
+    skill:  { btn: 'msSkillBtn', options: 'msSkillOptions', search: 'msSkillSearch' }
   };
 
   function populateFilterOptions(){
-    var progs = {}, jefes = {}, estados = {};
+    var progs = {}, jefes = {}, estados = {}, skills = {};
     STATE.raw.forEach(function(r){
       if(r.prog) progs[r.prog] = true;
       if(r.jefe) jefes[r.jefe] = true;
       if(r.estado) estados[r.estado] = true;
+      if(r.skill) skills[r.skill] = true;
     });
     // Preserve the user's current selection across a data refresh; only drop
     // selections for values that no longer exist in the new dataset.
     STATE.filters.prog = new Set(Array.from(STATE.filters.prog).filter(function(v){ return progs[v]; }));
     STATE.filters.jefe = new Set(Array.from(STATE.filters.jefe).filter(function(v){ return jefes[v]; }));
     STATE.filters.estado = new Set(Array.from(STATE.filters.estado).filter(function(v){ return estados[v]; }));
+    STATE.filters.skill = new Set(Array.from(STATE.filters.skill).filter(function(v){ return skills[v]; }));
     buildMultiSelect('msProgramOptions', Object.keys(progs).sort(), 'prog');
     buildMultiSelect('msJefeOptions', Object.keys(jefes).sort(), 'jefe');
     buildMultiSelect('msEstadoOptions', Object.keys(estados).sort(), 'estado');
+    buildMultiSelect('msSkillOptions', Object.keys(skills).sort(), 'skill');
     updateMsButtonLabel('prog');
     updateMsButtonLabel('jefe');
     updateMsButtonLabel('estado');
+    updateMsButtonLabel('skill');
   }
 
   function buildMultiSelect(containerId, values, scope){
@@ -747,8 +771,10 @@
     bindToggle('msProgramBtn', 'msProgramPanel');
     bindToggle('msJefeBtn', 'msJefePanel');
     bindToggle('msEstadoBtn', 'msEstadoPanel');
+    bindToggle('msSkillBtn', 'msSkillPanel');
     bindToggle('msAgFechaBtn', 'msAgFechaPanel');
     bindToggle('msAgTipoBtn', 'msAgTipoPanel');
+    bindToggle('msAgSkillBtn', 'msAgSkillPanel');
     document.addEventListener('click', function(e){
       if(!e.target.closest('.msfield')) document.querySelectorAll('.ms-panel.open').forEach(function(p){ p.classList.remove('open'); });
     });
@@ -787,10 +813,16 @@
       updateAgFilterLabel('tipo');
       applyAgentFilters();
     });
+    document.getElementById('msAgSkillClear').addEventListener('click', function(){
+      STATE.agentFilters.skill = new Set();
+      document.querySelectorAll('#msAgSkillOptions input[type=checkbox]').forEach(function(b){ b.checked = false; });
+      updateAgFilterLabel('skill');
+      applyAgentFilters();
+    });
   }
 
   function applyFilters(){
-    var progSet = STATE.filters.prog, jefeSet = STATE.filters.jefe, estadoSet = STATE.filters.estado;
+    var progSet = STATE.filters.prog, jefeSet = STATE.filters.jefe, estadoSet = STATE.filters.estado, skillSet = STATE.filters.skill;
     var fromEl = document.getElementById('fFrom'), toEl = document.getElementById('fTo');
     var from = fromEl.value, to = toEl.value;
     fromEl.classList.toggle('active-filter', !!from);
@@ -799,6 +831,7 @@
       if(progSet.size && !progSet.has(r.prog)) return false;
       if(jefeSet.size && !jefeSet.has(r.jefe)) return false;
       if(estadoSet.size && !estadoSet.has(r.estado)) return false;
+      if(skillSet.size && !skillSet.has(r.skill)) return false;
       if((from||to) && r.fecha){
         var d = r.fecha.substring(0,10);
         if(from && d < from) return false;
@@ -824,6 +857,18 @@
     return ((t.Promotor - t.Detractor) / t.total) * 100;
   }
 
+  function csatAvg(list){
+    var sum = 0, count = 0;
+    list.forEach(function(r){
+      var v = r.nota;
+      if(v !== null && v !== undefined && v !== '' && !isNaN(v)){
+        sum += Number(v);
+        count++;
+      }
+    });
+    return count ? (sum / count) : null;
+  }
+
   function groupBy(list, key){
     var map = {};
     list.forEach(function(r){
@@ -837,7 +882,7 @@
   // ---------------- Rendering: KPIs + Gauge ----------------
   function renderKPIs(){
     var t = tally(STATE.filtered);
-    var n = nps(t);
+    var csat = csatAvg(STATE.filtered);
     document.getElementById('kTotal').textContent = fmtInt(t.total);
     document.getElementById('kTotalSub').textContent = t.total ? 'periodo filtrado' : 'sin datos';
 
@@ -857,30 +902,33 @@
     document.getElementById('kDetSub').textContent = fmtInt(t.Detractor)+' encuestas';
     document.getElementById('kDetBar').style.width = dPct+'%';
 
-    renderGauge(n);
+    renderGauge(csat);
   }
 
-  function renderGauge(npsVal){
-    var clamped = Math.max(-100, Math.min(100, npsVal));
-    var pct = (clamped + 100) / 200; // 0..1
+  function renderGauge(csatVal){
+    var hasVal = csatVal !== null && csatVal !== undefined && !isNaN(csatVal);
+    var clamped = hasVal ? Math.max(0, Math.min(9, csatVal)) : 0;
+    var pct = clamped / 9; // 0..1, escala de nota 0 a 9
     var svg = document.getElementById('gaugeSvg');
     var cx=120, cy=120, r=95;
-    var startAngle = Math.PI, endAngle = 0; // semicircle top, left(180)->right(0)
     function pointAt(frac){
       var ang = Math.PI - frac*Math.PI;
       return { x: cx + r*Math.cos(ang), y: cy - r*Math.sin(ang) };
     }
     function arcPath(f0, f1){
       var p0 = pointAt(f0), p1 = pointAt(f1);
-      var largeArc = (f1-f0) > 0.5 ? 1 : 0;
-      return 'M '+p0.x.toFixed(2)+' '+p0.y.toFixed(2)+' A '+r+' '+r+' 0 '+largeArc+' 1 '+p1.x.toFixed(2)+' '+p1.y.toFixed(2);
+      // f0/f1 son fracciones de UN semicírculo (0 a 1 = 0° a 180°), así que
+      // el tramo nunca supera 180° y el large-arc-flag siempre debe ser 0.
+      return 'M '+p0.x.toFixed(2)+' '+p0.y.toFixed(2)+' A '+r+' '+r+' 0 0 1 '+p1.x.toFixed(2)+' '+p1.y.toFixed(2);
     }
-    var segDet = arcPath(0, 0.4);
-    var segNeu = arcPath(0.4, 0.6);
-    var segProm = arcPath(0.6, 1);
+    // Mismos cortes que la clasificación Detractor(0-6) / Neutro(7) / Promotor(8-9)
+    var segDet = arcPath(0, 6/9);
+    var segNeu = arcPath(6/9, 7/9);
+    var segProm = arcPath(7/9, 1);
     var needleP = pointAt(pct);
 
-    var color = clamped >= 50 ? COLORS.promotor : (clamped >= 0 ? COLORS.neutro : COLORS.detractor);
+    var rounded = Math.round(clamped * 10) / 10;
+    var color = rounded >= 8 ? COLORS.promotor : (rounded >= 7 ? COLORS.neutro : COLORS.detractor);
 
     svg.innerHTML =
       '<path d="'+segDet+'" stroke="'+COLORS.detractor+'" stroke-width="16" fill="none" stroke-linecap="round" opacity="0.85"/>' +
@@ -889,7 +937,7 @@
       '<circle cx="'+cx+'" cy="'+cy+'" r="5" fill="'+COLORS.navy+'"/>' +
       '<line x1="'+cx+'" y1="'+cy+'" x2="'+needleP.x.toFixed(2)+'" y2="'+needleP.y.toFixed(2)+'" stroke="'+COLORS.navy+'" stroke-width="3.5" stroke-linecap="round"/>';
 
-    document.getElementById('gaugeNum').textContent = (npsVal>=0?'+':'') + Math.round(npsVal);
+    document.getElementById('gaugeNum').textContent = hasVal ? rounded.toFixed(1) : '—';
     document.getElementById('gaugeNum').style.color = color;
   }
 
@@ -1099,10 +1147,11 @@
     document.getElementById('pId').textContent = first.id!=null ? first.id : '—';
     document.getElementById('pJefeProg').textContent = (first.prog||'—') + ' · ' + (first.jefe||'—');
     document.getElementById('pTotal').textContent = fmtInt(t.total);
-    var n = nps(t);
+    var csat = csatAvg(records);
+    var csatRounded = (csat!==null) ? Math.round(csat * 10) / 10 : null;
     var npsEl = document.getElementById('pNps');
-    npsEl.textContent = (n>=0?'+':'')+Math.round(n);
-    npsEl.style.color = n>=50?'var(--promotor)':(n>=0?'var(--neutro)':'var(--detractor)');
+    npsEl.textContent = (csatRounded!==null) ? csatRounded.toFixed(1) : '—';
+    npsEl.style.color = (csatRounded===null) ? 'var(--slate)' : (csatRounded>=8?'var(--promotor)':(csatRounded>=7?'var(--neutro)':'var(--detractor)'));
     document.getElementById('pDet').textContent = fmtInt(t.Detractor);
     document.getElementById('pProm').textContent = fmtInt(t.Promotor);
 
@@ -1112,7 +1161,7 @@
   }
 
   function buildAgentFilters(records){
-    STATE.agentFilters = { fecha: new Set(), tipo: new Set() };
+    STATE.agentFilters = { fecha: new Set(), tipo: new Set(), skill: new Set() };
 
     var dateMap = {};
     records.forEach(function(r){ if(r.fecha) dateMap[r.fecha.substring(0,10)] = true; });
@@ -1145,12 +1194,31 @@
       });
     });
 
+    var skillMap = {};
+    records.forEach(function(r){ if(r.skill) skillMap[r.skill] = true; });
+    var skillList = Object.keys(skillMap).sort();
+    var skillOptions = document.getElementById('msAgSkillOptions');
+    skillOptions.innerHTML = skillList.map(function(sk, i){
+      var id = 'agsk_'+i;
+      return '<label for="'+id+'"><input type="checkbox" id="'+id+'" value="'+esc(sk)+'" data-scope="agskill"> '+esc(sk)+'</label>';
+    }).join('');
+    skillOptions.querySelectorAll('input[type=checkbox]').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        if(cb.checked) STATE.agentFilters.skill.add(cb.value); else STATE.agentFilters.skill.delete(cb.value);
+        updateAgFilterLabel('skill');
+        applyAgentFilters();
+      });
+    });
+
     updateAgFilterLabel('fecha');
     updateAgFilterLabel('tipo');
+    updateAgFilterLabel('skill');
   }
 
+  var AG_FILTER_BTN_IDS = { fecha: 'msAgFechaBtn', tipo: 'msAgTipoBtn', skill: 'msAgSkillBtn' };
+
   function updateAgFilterLabel(scope){
-    var btn = document.getElementById(scope==='fecha' ? 'msAgFechaBtn' : 'msAgTipoBtn');
+    var btn = document.getElementById(AG_FILTER_BTN_IDS[scope]);
     var set = STATE.agentFilters[scope];
     var fallback = scope==='fecha' ? 'Todas' : 'Todos';
     if(set.size === 0){ btn.textContent = fallback; btn.classList.remove('has-selection'); }
@@ -1159,10 +1227,11 @@
   }
 
   function applyAgentFilters(){
-    var fechaSet = STATE.agentFilters.fecha, tipoSet = STATE.agentFilters.tipo;
+    var fechaSet = STATE.agentFilters.fecha, tipoSet = STATE.agentFilters.tipo, skillSet = STATE.agentFilters.skill;
     var records = (STATE.currentAgentRecords || []).filter(function(r){
       if(fechaSet.size && !fechaSet.has(r.fecha ? r.fecha.substring(0,10) : '')) return false;
       if(tipoSet.size && !tipoSet.has(r.tipo)) return false;
+      if(skillSet.size && !skillSet.has(r.skill)) return false;
       return true;
     });
     renderAgentRecordsTable(records);
@@ -1171,7 +1240,7 @@
   function renderAgentRecordsTable(records){
     var tbody = document.querySelector('#tblRecords tbody');
     if(!records.length){
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--slate-light);padding:24px;">Sin encuestas para este filtro</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--slate-light);padding:24px;">Sin encuestas para este filtro</td></tr>';
       return;
     }
     tbody.innerHTML = records.map(function(r){
@@ -1180,6 +1249,7 @@
         '<td>'+fmtTime(r.fecha)+'</td>' +
         '<td><span class="type-tag '+tipoBadgeClass(r.tipo)+'">'+esc(r.tipo||'—')+'</span></td>' +
         '<td>'+esc(r.num||'—')+'</td>' +
+        '<td>'+(r.nota!=null && r.nota!=='' ? esc(r.nota) : '—')+'</td>' +
         '</tr>';
     }).join('');
   }
@@ -1276,8 +1346,6 @@
       .then(function(parsed){
         if(!Array.isArray(parsed) || !parsed.length) throw new Error('El archivo de datos está vacío o no es válido.');
         if(myToken !== loadRequestToken){
-          // Una carga mas reciente ya empezo (o termino) mientras esta corria;
-          // descartamos este resultado para no pisar datos mas nuevos con datos viejos.
           return false;
         }
         STATE.raw = parsed;
@@ -1306,7 +1374,7 @@
         btn.classList.remove('loading');
         btn.disabled = false;
         if(!ok){
-          alert('No se pudo leer "' + DATA_FILE_URL + '".\n\nPosibles causas:\n· El sitio se acaba de desplegar y todavia no termina — espera un minuto y reintenta.\n· No se ha corrido el script que sube los datos mas recientes desde tu Excel.\n· Problema temporal de conexion.');
+          alert('No se pudo leer "' + DATA_FILE_URL + '".\n\nPosibles causas:\n· El sitio se acaba de desplegar y todavía no termina — espera un minuto y reintenta.\n· No se ha corrido el script que sube los datos más recientes.\n· Problema temporal de conexión.');
         }
       });
     });
@@ -1323,16 +1391,17 @@
   }
 
   function clearAllFilters(){
-
     STATE.filters.prog = new Set();
     STATE.filters.jefe = new Set();
     STATE.filters.estado = new Set();
+    STATE.filters.skill = new Set();
     document.querySelectorAll('.ms-options input[type=checkbox]').forEach(function(b){ b.checked = false; });
     document.querySelectorAll('.ms-search').forEach(function(s){ s.value = ''; });
     document.querySelectorAll('.ms-options label').forEach(function(l){ l.classList.remove('ms-hidden'); });
     updateMsButtonLabel('prog');
     updateMsButtonLabel('jefe');
     updateMsButtonLabel('estado');
+    updateMsButtonLabel('skill');
     document.getElementById('fFrom').value='';
     document.getElementById('fTo').value='';
     applyFilters();
