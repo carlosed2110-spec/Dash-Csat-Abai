@@ -424,6 +424,35 @@
     if(!yyyyMmDd || yyyyMmDd.length < 10) return yyyyMmDd || '—';
     return yyyyMmDd.substring(8,10)+'/'+yyyyMmDd.substring(5,7)+'/'+yyyyMmDd.substring(0,4);
   }
+  function fmtKpi(val, def){
+    if(val === null || val === undefined || isNaN(val)) return '—';
+    switch(def.fmt){
+      case 'int': return fmtInt(val);
+      case 'pct': return (val*100).toFixed(1)+'%';
+      case 'pctS': return (val>=0?'+':'') + (val*100).toFixed(1)+'%';
+      case 'num1': return val.toFixed(1);
+      default: return String(val);
+    }
+  }
+  function getActiveObjectivesMonth(){
+    if(STATE.filters.mes.size === 1) return Array.from(STATE.filters.mes)[0];
+    var months = Object.keys(STATE.objectivesByMonth);
+    if(!months.length) return null;
+    months.sort(function(a,b){ return MONTH_ABBR.indexOf(a) - MONTH_ABBR.indexOf(b); });
+    return months[months.length-1]; // el mas reciente disponible
+  }
+
+  function getObjective(plat, kpiKey, month){
+    var byPlat = STATE.objectivesByMonth[month];
+    var o = byPlat ? byPlat[plat] : null;
+    if(!o) return null;
+    var map = { objTransfer:'OBJ', objRell72:'OBJ RELL', objRell30:'OBJ RELL 30 MIN', objImp:'OBJ IMP' };
+    var col = map[kpiKey];
+    if(!col) return null;
+    var v = o[col];
+    return (typeof v === 'number') ? v : null;
+  }
+
   // ---------------- Aggregation ----------------
   function sumBy(list, field){
     var s = 0;
