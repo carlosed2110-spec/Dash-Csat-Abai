@@ -310,7 +310,11 @@
     'CSAT': 'csat',
     'EFECTIVIDAD': null // sin fuente de datos todavia
   };
-  var PENALIZADOR_TO_KPI = { 'TMO': 'tmo', 'SHORT CALL': 'pShortCall' };
+  var INDICADORES_NO_PORCENTAJE = { 'CSAT': true }; // se muestran como numero (0-9), no como %
+  var PENALIZADOR_TO_KPI = {
+    'TMO': { field:'tmo', isPct:false },
+    'SHORT CALL': { field:'pShortCall', isPct:true }
+  };
 
   var STATE = {
     improductivos: [],
@@ -656,11 +660,15 @@
     }
     var gateEvaluable = gateReasons.some(function(g){ return g.cumple !== null; });
 
+    // Los agentes Part Time cobran el 50% de lo que ganaría un Full Time en cada indicador.
+    var factorJornada = (jornada === 'Part Time') ? 0.5 : 1;
+
     var detalle = [], totalGanado = 0, totalPosible = 0;
     (scheme.indicadores||[]).forEach(function(ind){
       var kpiKey = INDICADOR_TO_KPI[ind.nombre];
-      var monto = esSupervisor ? (tier==='Senior' ? ind.montoSenior : ind.montoJunior) : ind.monto;
-      if(monto == null) return;
+      var montoBase = esSupervisor ? (tier==='Senior' ? ind.montoSenior : ind.montoJunior) : ind.monto;
+      if(montoBase == null) return;
+      var monto = montoBase * factorJornada;
       if(!kpiKey){
         detalle.push({ indicador: ind.nombre, pendiente:true, monto: monto });
         return; // no cuenta ni como ganado ni como perdido
@@ -670,16 +678,20 @@
       var ganado = (gateOk && cumple) ? monto : 0;
       totalGanado += ganado;
       totalPosible += monto;
-      detalle.push({ indicador: ind.nombre, actual: actual, obj: ind.obj, cumple: cumple, monto: monto, ganado: ganado });
+      detalle.push({ indicador: ind.nombre, actual: actual, obj: ind.obj, cumple: cumple, monto: monto, ganado: ganado, esPorcentaje: !INDICADORES_NO_PORCENTAJE[ind.nombre] });
     });
 
+    // Penalizadores: si la comparacion (tal como esta escrita, ej. ">=1%") se
+    // cumple, ESO es lo que penaliza (no lo contrario). Ej: TMO ">=494" penaliza
+    // si el TMO real es 494 o mas (osea, si el agente se demora demasiado).
     var penalizacionPct = 0, penalizadoresDetalle = [];
     (scheme.penalizadores||[]).forEach(function(pen){
-      var kpiKey = PENALIZADOR_TO_KPI[pen.nombre];
-      var actual = kpiKey ? kpis[kpiKey] : null;
-      var cumple = meetsObj(actual, pen.obj);
-      if(cumple === false) penalizacionPct += pen.peso;
-      penalizadoresDetalle.push({ nombre: pen.nombre, actual: actual, obj: pen.obj, cumple: cumple, peso: pen.peso });
+      var info = PENALIZADOR_TO_KPI[pen.nombre];
+      var actual = info ? kpis[info.field] : null;
+      var cumpleComparacion = meetsObj(actual, pen.obj);
+      var penaliza = cumpleComparacion === true;
+      if(penaliza) penalizacionPct += pen.peso;
+      penalizadoresDetalle.push({ nombre: pen.nombre, actual: actual, obj: pen.obj, penaliza: penaliza, evaluable: cumpleComparacion !== null, peso: pen.peso, esPorcentaje: info ? info.isPct : true });
     });
 
     var totalFinal = gateOk ? totalGanado * (1 - penalizacionPct) : 0;
@@ -892,7 +904,10 @@
 
   function indicatorCardHtml(d){
     var cls = d.pendiente ? 'pending' : (d.cumple ? 'hit' : 'miss');
-    var actualTxt = d.pendiente ? 'Sin fuente de datos' : fmtPct1(d.actual);
+    var actualTxt = 'Sin fuente de datos';
+    if(!d.pendiente){
+      actualTxt = d.esPorcentaje ? fmtPct1(d.actual) : (d.actual!=null && !isNaN(d.actual) ? d.actual.toFixed(2) : '—');
+    }
     var stateTxt = d.pendiente ? 'Pendiente' : (d.cumple===null ? 'Sin dato' : (d.cumple ? '✓ Cumple' : '✗ No cumple'));
     return '<div class="ind-card '+cls+'">'+
       '<div class="ind-name">'+esc(d.indicador)+'</div>'+
@@ -909,8 +924,9 @@
       return '<div class="ind-row"><span>'+esc(g.nombre)+'</span><b>'+(g.actual!=null?(typeof g.actual==='number'&&g.actual<1.5?fmtPct1(g.actual):fmtInt(g.actual)):'—')+' — '+txt+'</b></div>';
     }).join('');
     var penHtml = r.penalizadoresDetalle.map(function(p){
-      var txt = p.cumple===null?'sin dato':(p.cumple?'cumple':'no cumple (-'+(p.peso*100).toFixed(0)+'%)');
-      return '<div class="ind-row"><span>'+esc(p.nombre)+'</span><b>'+(p.actual!=null?p.actual.toFixed(1):'—')+' vs '+esc(p.obj)+' — '+txt+'</b></div>';
+      var txt = !p.evaluable ? 'sin dato' : (p.penaliza ? 'Penaliza (-'+(p.peso*100).toFixed(0)+'%)' : 'No penaliza');
+      var actualTxt = p.actual!=null ? (p.esPorcentaje ? fmtPct1(p.actual) : p.actual.toFixed(1)) : '—';
+      return '<div class="ind-row"><span>'+esc(p.nombre)+'</span><b>'+actualTxt+' vs '+esc(p.obj)+' — '+txt+'</b></div>';
     }).join('');
     return '<div class="detail-inner">'+
       '<div class="detail-grid">'+
