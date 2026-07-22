@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel PDA · Seguimiento Rellamadas — ABAI / Movistar (Nube)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* ====== Paleta compartida del portal (navy + acento azul) ====== */
+  :root{
+    --navy-deep:#0B1B36; --navy-mid:#15294D; --navy-soft:#1E3A66;
+    --bg:#ffffff; --surface:#f7f8fb; --surface-2:#eef1f6;
+    --border:#e2e6ed; --border-strong:#c7ced9;
+    --ink:#101828; --muted:#667085; --muted-2:#98a2b3;
+    --accent:#2E6BE6; --accent-dark:#1e4fb8; --accent-soft:#e8eefd;
+    --optimo:#12b76a; --optimo-soft:#e7f8f0;
+    --controlado:#84cc16; --controlado-soft:#f2f9e2;
+    --riesgo:#f59e0b; --riesgo-soft:#fef3e0;
+    --critico:#e11d48; --critico-soft:#fde8ed;
+    --font-display:'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-body:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono:'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --radius:10px; --shadow-sm:0 1px 2px rgba(16,24,40,0.04); --shadow-md:0 4px 14px rgba(16,24,40,0.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1360px;margin:0 auto;padding:20px 24px 60px;}
+
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:18px;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap;}
+  .brand-eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;margin:0 0 4px;}
+  .brand-title{font-family:var(--font-display);font-size:26px;font-weight:800;letter-spacing:-.01em;margin:0;color:var(--ink);}
+  .brand-sub{margin:4px 0 0;color:var(--muted);font-size:13px;}
+  .brand-sub b{color:var(--ink);font-weight:600;}
+
+  .health-strip-wrap{min-width:280px;}
+  .health-label{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px;letter-spacing:.02em;text-transform:uppercase;font-weight:600;}
+  .health-strip{display:flex;height:14px;border-radius:7px;overflow:hidden;border:1px solid var(--border);background:var(--surface-2);}
+  .health-strip span{height:100%;transition:width .4s ease;}
+  .health-legend{display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;}
+  .health-legend .item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);}
+  .health-legend .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+
+  .btn{font-family:var(--font-body);font-weight:600;font-size:13px;border-radius:8px;padding:9px 16px;border:1px solid var(--border-strong);background:#fff;color:var(--ink);cursor:pointer;transition:all .15s ease;}
+  .btn:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-sm{padding:6px 11px;font-size:12px;}
+
+  .filterbar{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:22px;box-shadow:var(--shadow-md);}
+  .filter-group{display:flex;flex-direction:column;gap:6px;}
+  .filter-group label{font-size:10.5px;font-weight:700;color:var(--navy-mid);text-transform:uppercase;letter-spacing:.07em;}
+  select, .search-input{font-family:var(--font-body);font-size:13px;padding:8px 11px;border-radius:8px;border:1px solid var(--border-strong);background:#fff;color:var(--ink);min-width:150px;}
+  select:focus, .search-input:focus{outline:2px solid var(--accent-soft);border-color:var(--accent);}
+  .search-input{min-width:220px;}
+  .filterbar .spacer{flex:1;}
+  .clear-btn{font-family:var(--font-body);font-weight:600;font-size:12.5px;border-radius:8px;padding:8px 14px;border:1px solid var(--border-strong);background:#fff;color:var(--muted);cursor:pointer;transition:all .15s ease;white-space:nowrap;}
+  .clear-btn:hover{border-color:var(--critico);color:var(--critico);}
+  .meta-pill{font-size:12px;color:var(--accent-dark);background:var(--accent-soft);border:1px solid var(--accent-soft);padding:8px 14px;border-radius:20px;font-family:var(--font-mono);font-weight:600;white-space:nowrap;}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px;}
+  .kpi-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px 16px 14px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;}
+  .kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--bar-color,var(--accent));}
+  .kpi-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px;}
+  .kpi-value{font-family:var(--font-mono);font-size:26px;font-weight:700;margin:0;letter-spacing:-.01em;}
+  .kpi-sub{font-size:11.5px;color:var(--muted-2);margin-top:4px;}
+
+  .panel{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:20px;box-shadow:var(--shadow-sm);}
+  .panel-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+  .panel-title{font-family:var(--font-display);font-size:15px;font-weight:700;margin:0;}
+  .panel-sub{font-size:12px;color:var(--muted);margin:2px 0 0;}
+  .charts-row{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;}
+  @media(max-width:980px){.charts-row{grid-template-columns:1fr;} .kpi-row{grid-template-columns:repeat(2,1fr);}}
+  .chart-box{position:relative;height:280px;}
+
+  .legend-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;}
+  .legend-chip{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);}
+  .legend-chip .sw{width:10px;height:10px;border-radius:3px;}
+
+  .heatmap-scroll{max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:8px;}
+  table.heat{border-collapse:collapse;width:100%;font-size:12.5px;}
+  table.heat th{position:sticky;top:0;background:var(--surface);z-index:2;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);}
+  table.heat td{padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  table.heat td.name{position:sticky;left:0;background:#fff;font-weight:600;z-index:1;border-right:1px solid var(--border);}
+  table.heat th:first-child{position:sticky;left:0;z-index:3;}
+  .cell-badge{display:inline-block;min-width:64px;text-align:center;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:700;font-family:var(--font-mono);}
+  .cell-empty{color:var(--muted-2);}
+
+  .table-scroll{overflow:auto;border:1px solid var(--border);border-radius:8px;max-height:520px;}
+  table.detail{border-collapse:collapse;width:100%;font-size:12.5px;}
+  table.detail th{position:sticky;top:0;background:var(--surface);z-index:2;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap;}
+  table.detail th:hover{color:var(--accent);}
+  table.detail th .arrow{font-size:9px;margin-left:3px;color:var(--accent);}
+  table.detail td{padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  table.detail tr:hover td{background:var(--surface);}
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
+  .badge-optimo{background:var(--optimo-soft);color:var(--optimo);}
+  .badge-controlado{background:var(--controlado-soft);color:#5a7a0f;}
+  .badge-riesgo{background:var(--riesgo-soft);color:#a15c00;}
+  .badge-critico{background:var(--critico-soft);color:var(--critico);}
+  .badge-neutral{background:var(--surface-2);color:var(--muted);}
+  .mono{font-family:var(--font-mono);}
+  .pager{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:12.5px;color:var(--muted);}
+  .pager-btns{display:flex;gap:6px;}
+
+  footer{text-align:center;color:var(--muted-2);font-size:11.5px;margin-top:30px;}
+
+  /* ---------- LOADING / ERROR ---------- */
+  #loadScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:90px 24px;text-align:center;}
+  .spinner{width:36px;height:36px;border-radius:50%;border:3px solid var(--surface-2);border-top-color:var(--accent);animation:spin .8s linear infinite;margin-bottom:18px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loadScreen p{color:var(--muted);font-size:13.5px;margin:2px 0;}
+  #errBox{display:none;margin-top:18px;max-width:640px;background:var(--critico-soft);color:var(--critico);border-radius:10px;padding:14px 18px;font-size:13px;text-align:left;white-space:pre-wrap;}
+  #dashScreen{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ LOADING SCREEN ============ -->
+  <div id="loadScreen">
+    <div class="spinner"></div>
+    <p id="loadMsg">Cargando datos desde Improductivos, Objetivos y TipoGest…</p>
+    <div id="errBox"></div>
+  </div>
+
+  <!-- ============ DASHBOARD SCREEN ============ -->
+  <div id="dashScreen">
+
+    <div class="topbar">
+      <div>
+        <p class="brand-eyebrow">ABAI · Movistar</p>
+        <h1 class="brand-title">Panel PDA — Seguimiento de Rellamadas</h1>
+        <p class="brand-sub"><b id="fileCountLabel">—</b> · <span id="lastUpdateLabel">—</span></p>
+      </div>
+      <div style="display:flex;gap:14px;align-items:flex-start;">
+        <div class="health-strip-wrap">
+          <div class="health-label"><span>Salud general del programa</span><span id="healthPct">—</span></div>
+          <div class="health-strip" id="healthStrip"></div>
+          <div class="health-legend">
+            <span class="item"><span class="dot" style="background:var(--optimo)"></span>Óptimo</span>
+            <span class="item"><span class="dot" style="background:var(--controlado)"></span>Controlado</span>
+            <span class="item"><span class="dot" style="background:var(--riesgo)"></span>Riesgo</span>
+            <span class="item"><span class="dot" style="background:var(--critico)"></span>Crítico</span>
+          </div>
+        </div>
+        <button class="btn" id="reloadBtn" type="button">Recargar datos</button>
+      </div>
+    </div>
+
+    <div class="filterbar">
+      <div class="filter-group"><label>Mes</label><select id="fMes"></select></div>
+      <div class="filter-group"><label>Programa</label><select id="fPrograma"></select></div>
+      <div class="filter-group"><label>Plataforma</label><select id="fPlataforma"></select></div>
+      <div class="filter-group"><label>Jefe Directo</label><select id="fJefe"></select></div>
+      <div class="filter-group"><label>Gestión</label><select id="fGestion"></select></div>
+      <div class="filter-group"><label>Categoría</label><select id="fCategoria"></select></div>
+      <div class="filter-group"><label>Buscar asesor</label><input type="text" class="search-input" id="fSearch" placeholder="Nombre del asesor..."></div>
+      <button class="clear-btn" id="clearFilters" type="button">Limpiar filtros</button>
+      <div class="spacer"></div>
+      <span class="meta-pill" id="rowCountPill">0 registros</span>
+    </div>
+
+    <div class="kpi-row" id="kpiRow"></div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div><p class="panel-title">Vista ejecutiva — Movimiento de Críticos</p><p class="panel-sub">Comparación mes vs. mes anterior: quiénes se mantienen en Crítico, quiénes se suman de nuevo, y quiénes mejoran. "Detectados desde Semana 1" = de los críticos del mes, cuántos ya venían en Riesgo desde la primera semana (no fue un salto de último momento).</p></div>
+      </div>
+      <div class="kpi-row" id="execKpiRow" style="margin-bottom:16px;"></div>
+      <div class="table-scroll" style="max-height:320px;"><table class="detail" id="execTable"></table></div>
+    </div>
+
+    <div class="charts-row">
+      <div class="panel">
+        <div class="panel-head">
+          <div><p class="panel-title">Distribución de categoría por plataforma</p><p class="panel-sub">Conteo de asesores por Cat. Reitero — mes seleccionado</p></div>
+        </div>
+        <div class="chart-box"><canvas id="chartCat"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><p class="panel-title">Tendencia %Rll30 vs objetivo</p><p class="panel-sub">Promedio mensual por plataforma</p></div>
+        </div>
+        <div class="chart-box"><canvas id="chartTrend"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div><p class="panel-title">Evolución mensual por categoría (Cat. Mensual)</p><p class="panel-sub">Conteo de asesores por categoría, mes a mes — no cambia con el filtro de Mes, para ver la evolución completa</p></div>
+      </div>
+      <div class="chart-box"><canvas id="chartCatMensual"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div><p class="panel-title">Mapa semanal de riesgo</p><p class="panel-sub" id="heatSub">Categoría Rll30 por asesor, semana a semana</p></div>
+        <div class="legend-row">
+          <span class="legend-chip"><span class="sw" style="background:var(--optimo)"></span>Óptimo</span>
+          <span class="legend-chip"><span class="sw" style="background:var(--controlado)"></span>Controlado</span>
+          <span class="legend-chip"><span class="sw" style="background:var(--riesgo)"></span>Riesgo</span>
+          <span class="legend-chip"><span class="sw" style="background:var(--critico)"></span>Crítico</span>
+        </div>
+      </div>
+      <div class="heatmap-scroll"><table class="heat" id="heatTable"></table></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div><p class="panel-title">Detalle por asesor</p><p class="panel-sub">Clic en un encabezado para ordenar</p></div>
+      </div>
+      <div class="table-scroll"><table class="detail" id="detailTable"></table></div>
+      <div class="pager">
+        <span id="pagerInfo">—</span>
+        <div class="pager-btns">
+          <button class="btn btn-sm" id="prevPage">← Anterior</button>
+          <button class="btn btn-sm" id="nextPage">Siguiente →</button>
+        </div>
+      </div>
+    </div>
+
+    <footer>Panel PDA (nube) · datos generados automáticamente por push-to-github.ps1 desde Improductivos / Matrix / Estado Agentes.</footer>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ==================================================================== */
+  /*  CONFIG — rutas de los JSON generados por push-to-github.ps1          */
+  /* ==================================================================== */
+  const IMPRODUCTIVOS_JSON = 'improductivos-data.json'; // ya generado por Export-ImproductivosDataJson
+  const PDA_JSON = 'pda-data.json';                      // Objetivos + Reglas + TipoGest + Estado Agentes
+  const EXCLUDED_PLATFORMS = ['RETENCIONES_MOVIL'];
+  const MES_TEXT_TO_NUM = { 'Ene.':1,'Feb.':2,'Mar.':3,'Abr.':4,'May.':5,'Jun.':6,'Jul.':7,'Ago.':8,'Sep.':9,'Oct.':10,'Nov.':11,'Dic.':12 };
+
+  async function fetchJson(url, retries){
+    retries = retries===undefined ? 2 : retries;
+    let lastErr;
+    for(let attempt=0; attempt<=retries; attempt++){
+      try{
+        const res = await fetch(url, {cache:'no-store'});
+        if(!res.ok) throw new Error(`No se pudo leer "${url}" (HTTP ${res.status}).`);
+        return await res.json();
+      }catch(e){
+        lastErr = e;
+        if(attempt < retries){
+          console.warn(`Fallo leyendo "${url}" (intento ${attempt+1}/${retries+1}), reintentando…`, e.message);
+          await new Promise(r=>setTimeout(r, 500 * (attempt+1)));
+        }
+      }
+    }
+    throw lastErr;
+  }
+
+  /* ==================================================================== */
+  /*  CONSTANTS                                                            */
+  /* ==================================================================== */
+  const COLORS = { optimo:'#12b76a', controlado:'#84cc16', riesgo:'#f59e0b', critico:'#e11d48', muted:'#98a2b3', accent:'#2E6BE6' };
+  const CAT_ORDER = ['Óptimo','Controlado','Riesgo','Crítico'];
+  const CAT_KEY = { 'Óptimo':'optimo', 'Controlado':'controlado', 'Riesgo':'riesgo', 'Crítico':'critico' };
+  const WEEK_COLS = ['Semana 1','Semana 2','Semana 3','Semana 4'];
+  const PAGE_SIZE = 25;
+  const HEATMAP_CAP = 400;
+  const MES_LABELS = ['Ene.','Feb.','Mar.','Abr.','May.','Jun.','Jul.','Ago.','Sep.','Oct.','Nov.','Dic.'];
+
+  /* ==================================================================== */
+  /*  STATE                                                                */
+  /* ==================================================================== */
+  let RAW = { impMes: [], imp: [], objetivos: [], reglas: {}, tipoGest: new Map(), estadoAgentes: new Map() };
+  let fileCache = new Map(); // key: filename|size -> parsed rows, evita re-parsear en cada "Recargar"
+  let filters = { mes:'todos', programa:'todos', plataforma:'todos', jefe:'todos', gestion:'todos', categoria:'todos', search:'' };
+  let sortState = { col:'Nombre Completo', dir:'asc' };
+  let page = 1;
+  let charts = {};
+
+  /* ==================================================================== */
+  /*  HELPERS                                                              */
+  /* ==================================================================== */
+  function fmtPct(x, digits){ if(typeof x !== 'number' || isNaN(x)) return '—'; return (x*100).toFixed(digits===undefined?1:digits) + '%'; }
+  function fmtNum(x){ if(typeof x !== 'number' || isNaN(x)) return '—'; return new Intl.NumberFormat('es-PE').format(x); }
+  function mean(arr){ const v = arr.filter(x=>typeof x==='number' && !isNaN(x)); if(!v.length) return null; return v.reduce((a,b)=>a+b,0)/v.length; }
+  function uniqueSorted(arr){
+    return [...new Set(arr.filter(v=>v!==null && v!==undefined && v!==''))].sort((a,b)=>{
+      if(typeof a==='number' && typeof b==='number') return a-b;
+      return String(a).localeCompare(String(b),'es');
+    });
+  }
+  function badgeClass(cat){
+    switch(cat){ case 'Óptimo': return 'badge-optimo'; case 'Controlado': return 'badge-controlado';
+      case 'Riesgo': return 'badge-riesgo'; case 'Crítico': return 'badge-critico'; default: return 'badge-neutral'; }
+  }
+  function catColor(cat){ return COLORS[CAT_KEY[cat]] || COLORS.muted; }
+  function escapeHtml(s){ return String(s===null||s===undefined?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function mesNumFromDate(d){ return (d instanceof Date && !isNaN(d)) ? (d.getMonth()+1) : null; }
+  function mesLabel(n){ return (typeof n==='number' && n>=1 && n<=12) ? MES_LABELS[n-1] : String(n); }
+
+  /* ==================================================================== */
+  /*  REGLAS DE CATEGORIZACIÓN (leídas desde Matrix/Objetivos.xlsx > Reglas) */
+  /*  delta = actual-objetivo (menor_mejor) u objetivo-actual (mayor_mejor) */
+  /* ==================================================================== */
+  function computeCategoria(actual, objetivo, reglaKey, granularity){
+    const regla = RAW.reglas[reglaKey];
+    if(!regla || typeof actual !== 'number' || typeof objetivo !== 'number') return null;
+    const delta = regla.direccion === 'mayor_mejor' ? (objetivo - actual) : (actual - objetivo);
+    if(granularity === 'semanal'){
+      const uS = regla.umbralSemanal;
+      if(delta <= 0) return 'Óptimo';
+      if(typeof uS === 'number' && delta <= uS) return 'Controlado';
+      return 'Riesgo';
+    }
+    const uC = regla.umbralControlado, uR = regla.umbralRiesgo;
+    if(delta <= 0) return 'Óptimo';
+    if(typeof uC === 'number' && delta <= uC) return 'Controlado';
+    if(typeof uR === 'number' && delta <= uR) return 'Riesgo';
+    return 'Crítico';
+  }
+
+  /* ==================================================================== */
+  /*  CARGA: pda-data.json -> objetivos + reglas                           */
+  /* ==================================================================== */
+  function loadObjetivosFromJson(pdaData){
+    RAW.objetivos = (pdaData.objetivos || []).filter(r => r['PLATAFORMA'] && r['Mes'] !== null && r['Mes'] !== undefined);
+
+    RAW.reglas = {};
+    (pdaData.reglas ? Object.keys(pdaData.reglas) : []).forEach(kpi=>{
+      const r = pdaData.reglas[kpi];
+      RAW.reglas[kpi] = {
+        direccion: r.direccion,
+        unidad: r.unidad,
+        umbralControlado: typeof r.umbralControlado==='number' ? r.umbralControlado : null,
+        umbralRiesgo: typeof r.umbralRiesgo==='number' ? r.umbralRiesgo : null,
+        umbralSemanal: typeof r.umbralSemanal==='number' ? r.umbralSemanal : null,
+      };
+    });
+    // Fallback de seguridad si Reglas viniera vacía: usa el corte confirmado para Rll 30
+    if(!RAW.reglas['Rll 30']){
+      RAW.reglas['Rll 30'] = { direccion:'menor_mejor', umbralControlado:0.02, umbralRiesgo:0.06, umbralSemanal:0.02 };
+    }
+  }
+
+  function objetivoFor(plataforma, mes, campo){
+    const row = RAW.objetivos.find(r => r['PLATAFORMA']===plataforma && Number(r['Mes'])===Number(mes));
+    return row ? row[campo] : null;
+  }
+
+  /* ==================================================================== */
+  /*  CARGA: pda-data.json -> tipoGest                                     */
+  /* ==================================================================== */
+  function loadTipoGestFromJson(pdaData){
+    RAW.tipoGest = new Map();
+    (pdaData.tipoGest || []).forEach(r=>{
+      if(!r['Programa'] || !r['PLATAFORMA']) return;
+      RAW.tipoGest.set(r['Programa']+'|'+r['PLATAFORMA'], r['Gestión Plat']);
+    });
+  }
+  function gestionFor(programa, plataforma){ return RAW.tipoGest.get(programa+'|'+plataforma) || null; }
+
+  /* ==================================================================== */
+  /*  CARGA: pda-data.json -> estadoAgentes (Tiempo de permanencia / Estado presencial) */
+  /* ==================================================================== */
+  function normalizeKey(s){ return String(s||'').trim().toLocaleLowerCase('es').replace(/\s+/g,' '); }
+
+  function loadEstadoAgentesFromJson(pdaData){
+    RAW.estadoAgentes = new Map();
+    const rows = pdaData.estadoAgentes || [];
+    let matchedRows = 0;
+    rows.forEach(r=>{
+      const nombre = r.nombre;
+      if(!nombre) return;
+      const tp = r.tiempoPermanencia, ep = r.estadoPresencial;
+      if(tp===undefined && ep===undefined) return;
+      matchedRows++;
+      // El JSON de Estado Agentes no trae mes (es un solo archivo fijo) -> clave 'x' (mismo criterio
+      // que la versión local usa como comodín cuando no hay match por mes específico).
+      RAW.estadoAgentes.set('x|'+normalizeKey(nombre), { tiempoPermanencia: tp ?? null, estadoPresencial: ep ?? null });
+    });
+    console.info(`Estado Agentes: ${matchedRows}/${rows.length} filas con datos de permanencia/estado, ${RAW.estadoAgentes.size} agentes indexados.`);
+  }
+  function estadoFor(mes, nombre){
+    const key = normalizeKey(nombre);
+    return RAW.estadoAgentes.get(mes+'|'+key) || RAW.estadoAgentes.get('x|'+key) || {};
+  }
+
+  /* ==================================================================== */
+  /*  CARGA: improductivos-data.json -> agrega a nivel MENSUAL y SEMANAL   */
+  /* ==================================================================== */
+  async function loadImproductivos(){
+    const data = await fetchJson(IMPRODUCTIVOS_JSON);
+    const records = Array.isArray(data) ? data : (data.records || []);
+    if(!records.length) throw new Error(`"${IMPRODUCTIVOS_JSON}" no tiene registros.`);
+
+    document.getElementById('fileCountLabel').textContent = `${fmtNum(records.length)} registro(s) de Improductivos`;
+
+    const monthlyGroups = new Map(); // key: nombre|programa|plataforma|mes
+    const weeklyGroups  = new Map(); // key: nombre|programa|plataforma|mes|semana
+
+    records.forEach(r=>{
+      const plataforma = r.plataforma;
+      if(!plataforma || EXCLUDED_PLATFORMS.includes(plataforma)) return;
+      const nombre = r.agente;
+      if(!nombre) return;
+      const programa = r.programa;
+      const jefe = r.jefe;
+      const semana = r.semana;
+      const mes = MES_TEXT_TO_NUM[r.mes] || null; // el JSON trae el mes como texto ("Jul."), acá se convierte a número para cruzar con Objetivos
+      if(mes===null) return;
+
+      const at72 = Number(r.atendRell72) || 0;
+      const re72 = Number(r.rell72) || 0;
+      const at30 = Number(r.atendRell30) || 0;
+      const re30 = Number(r.rell30) || 0;
+
+      const mKey = [nombre, programa, plataforma, mes].join('|');
+      if(!monthlyGroups.has(mKey)) monthlyGroups.set(mKey, { nombre, programa, plataforma, jefe, mes, at72:0, re72:0, at30:0, re30:0 });
+      const mg = monthlyGroups.get(mKey);
+      mg.at72 += at72; mg.re72 += re72; mg.at30 += at30; mg.re30 += re30;
+
+      const wKey = [nombre, programa, plataforma, mes, semana].join('|');
+      if(!weeklyGroups.has(wKey)) weeklyGroups.set(wKey, { nombre, programa, plataforma, jefe, mes, semana, at72:0, re72:0, at30:0, re30:0 });
+      const wg = weeklyGroups.get(wKey);
+      wg.at72 += at72; wg.re72 += re72; wg.at30 += at30; wg.re30 += re30;
+    });
+
+    RAW.impMes = [...monthlyGroups.values()].map(g=>{
+      const pRll30 = g.at30 ? g.re30/g.at30 : null;
+      const pRll72 = g.at72 ? g.re72/g.at72 : null;
+      const objRll30 = objetivoFor(g.plataforma, g.mes, 'Rll Obj 30');
+      const objRll72 = objetivoFor(g.plataforma, g.mes, 'Rll Obj 72');
+      const est = estadoFor(g.mes, g.nombre);
+      return {
+        'Nombre Completo': g.nombre, 'Programa': g.programa, 'PLATAFORMA': g.plataforma, 'Jefe Directo': g.jefe, 'Mes': g.mes,
+        'AT 72': g.at72, 'Reitero 72': g.re72, 'AT 30': g.at30, 'Reitero 30': g.re30,
+        '%Rll 30': pRll30, '%Rll 72': pRll72,
+        'Objetivos.Rll Obj 30': objRll30, 'Objetivos.Rll Obj 72': objRll72,
+        'Cat Reitero': computeCategoria(pRll30, objRll30, 'Rll 30', 'mensual'),
+        'TipoGest.Gestión Plat.1': gestionFor(g.programa, g.plataforma),
+        'Master Mes.Tiempo de permanencia': est.tiempoPermanencia ?? null,
+        'Master Mes.Estado presencial': est.estadoPresencial ?? null,
+      };
+    });
+
+    RAW.imp = [...weeklyGroups.values()].map(g=>{
+      const pRll30 = g.at30 ? g.re30/g.at30 : null;
+      const objRll30 = objetivoFor(g.plataforma, g.mes, 'Rll Obj 30');
+      return {
+        'Nombre Completo': g.nombre, 'Programa': g.programa, 'PLATAFORMA': g.plataforma, 'Jefe Directo': g.jefe, 'Mes': g.mes, 'Semana': g.semana,
+        '%Rll 30': pRll30, 'Objetivos.Rll Obj 30': objRll30,
+        'Cat Semana Rll30': computeCategoria(pRll30, objRll30, 'Rll 30', 'semanal'),
+        'TipoGest.Gestión Plat': gestionFor(g.programa, g.plataforma),
+      };
+    });
+  }
+
+  function gestionOf(row){ return row['TipoGest.Gestión Plat.1'] ?? row['TipoGest.Gestión Plat'] ?? null; }
+
+  function matchesFilters(row, includeMes){
+    if(includeMes && filters.mes!=='todos' && String(row['Mes'])!==String(filters.mes)) return false;
+    if(filters.programa!=='todos' && row['Programa']!==filters.programa) return false;
+    if(filters.plataforma!=='todos' && row['PLATAFORMA']!==filters.plataforma) return false;
+    if(filters.jefe!=='todos' && row['Jefe Directo']!==filters.jefe) return false;
+    if(filters.gestion!=='todos' && gestionOf(row)!==filters.gestion) return false;
+    if(filters.categoria!=='todos'){
+      // filas mensuales usan 'Cat Reitero', filas semanales usan 'Cat Semana Rll30' — hay que mirar la que exista
+      const cat = ('Cat Reitero' in row) ? row['Cat Reitero'] : row['Cat Semana Rll30'];
+      if(cat!==filters.categoria) return false;
+    }
+    if(filters.search){
+      const nm = String(row['Nombre Completo']||'').toLocaleLowerCase('es');
+      if(!nm.includes(filters.search.toLocaleLowerCase('es'))) return false;
+    }
+    return true;
+  }
+  function getFilteredMonthly(includeMes){ return RAW.impMes.filter(r=>matchesFilters(r, includeMes!==false)); }
+
+  /* ==================================================================== */
+  /*  INIT                                                                 */
+  /* ==================================================================== */
+  async function boot(){
+    document.getElementById('errBox').style.display = 'none';
+    document.getElementById('loadScreen').style.display = 'flex';
+    document.getElementById('dashScreen').style.display = 'none';
+    try{
+      document.getElementById('loadMsg').textContent = 'Leyendo pda-data.json (Objetivos, Reglas, TipoGest, Estado Agentes)…';
+      const pdaData = await fetchJson(PDA_JSON);
+      loadObjetivosFromJson(pdaData);
+      loadTipoGestFromJson(pdaData);
+      loadEstadoAgentesFromJson(pdaData);
+      document.getElementById('loadMsg').textContent = 'Leyendo improductivos-data.json…';
+      await loadImproductivos();
+
+      if(!RAW.impMes.length) throw new Error('No se generaron registros mensuales a partir de improductivos-data.json.');
+
+      document.getElementById('lastUpdateLabel').textContent = 'cargado ' + new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
+      initFiltersAndRender();
+      document.getElementById('loadScreen').style.display = 'none';
+      document.getElementById('dashScreen').style.display = 'block';
+    }catch(err){
+      console.error(err);
+      document.getElementById('loadMsg').textContent = 'No se pudo cargar el panel.';
+      const box = document.getElementById('errBox');
+      box.textContent = err.message;
+      box.style.display = 'block';
+    }
+  }
+  document.getElementById('reloadBtn').addEventListener('click', boot);
+  boot();
+
+  /* ==================================================================== */
+  /*  FILTERS UI + RENDER                                                  */
+  /* ==================================================================== */
+  function fillSelect(el, values, allLabel, labeler){
+    el.innerHTML = '';
+    const optAll = document.createElement('option'); optAll.value='todos'; optAll.textContent=allLabel; el.appendChild(optAll);
+    values.forEach(v=>{
+      const o = document.createElement('option'); o.value=v; o.textContent = labeler ? labeler(v) : v; el.appendChild(o);
+    });
+  }
+
+  function initFiltersAndRender(){
+    filters = { mes:'todos', programa:'todos', plataforma:'todos', jefe:'todos', gestion:'todos', categoria:'todos', search:'' };
+    sortState = { col:'Nombre Completo', dir:'asc' };
+    page = 1;
+
+    const meses = uniqueSorted(RAW.impMes.map(r=>r['Mes']));
+    const programas = uniqueSorted(RAW.impMes.map(r=>r['Programa']));
+    const plataformas = uniqueSorted(RAW.impMes.map(r=>r['PLATAFORMA']));
+    const jefes = uniqueSorted(RAW.impMes.map(r=>r['Jefe Directo']));
+    const gestiones = uniqueSorted(RAW.impMes.map(gestionOf));
+
+    fillSelect(document.getElementById('fMes'), meses, 'Todos los meses', mesLabel);
+    fillSelect(document.getElementById('fPrograma'), programas, 'Todos los programas');
+    fillSelect(document.getElementById('fPlataforma'), plataformas, 'Todas las plataformas');
+    fillSelect(document.getElementById('fJefe'), jefes, 'Todos los jefes directos');
+    fillSelect(document.getElementById('fGestion'), gestiones, 'Toda gestión');
+    fillSelect(document.getElementById('fCategoria'), CAT_ORDER, 'Toda categoría');
+    document.getElementById('fSearch').value = '';
+
+    document.getElementById('fMes').onchange = e=>{ filters.mes=e.target.value; page=1; render(); };
+    document.getElementById('fPrograma').onchange = e=>{ filters.programa=e.target.value; page=1; render(); };
+    document.getElementById('fPlataforma').onchange = e=>{ filters.plataforma=e.target.value; page=1; render(); };
+    document.getElementById('fJefe').onchange = e=>{ filters.jefe=e.target.value; page=1; render(); };
+    document.getElementById('fGestion').onchange = e=>{ filters.gestion=e.target.value; page=1; render(); };
+    document.getElementById('fCategoria').onchange = e=>{ filters.categoria=e.target.value; page=1; render(); };
+
+    let searchTimer=null;
+    document.getElementById('fSearch').oninput = e=>{ clearTimeout(searchTimer); searchTimer=setTimeout(()=>{ filters.search=e.target.value; page=1; render(); },200); };
+    document.getElementById('prevPage').onclick = ()=>{ if(page>1){ page--; renderDetailTable(); } };
+    document.getElementById('nextPage').onclick = ()=>{ page++; renderDetailTable(); };
+    document.getElementById('clearFilters').onclick = ()=>{ initFiltersAndRender(); };
+
+    render();
+  }
+
+  function render(){
+    const filteredMonthly = getFilteredMonthly(true);
+    renderKPIs(filteredMonthly);
+    renderHealthStrip(filteredMonthly);
+    renderExecView();
+    renderCatChart();
+    renderCatMensualChart();
+    renderTrendChart();
+    renderHeatmap();
+    renderDetailTable();
+    document.getElementById('rowCountPill').textContent = fmtNum(filteredMonthly.length) + ' registros';
+  }
+
+  /* ---------------- KPI CARDS ---------------- */
+  function renderKPIs(rows){
+    const asesores = new Set(rows.map(r=>r['Nombre Completo'])).size;
+    const cats = rows.map(r=>r['Cat Reitero']).filter(c=>c!==null);
+    const cumplimiento = cats.length ? (cats.filter(c=>c==='Óptimo'||c==='Controlado').length/cats.length) : null;
+    const enRiesgo = cats.length ? (cats.filter(c=>c==='Riesgo'||c==='Crítico').length/cats.length) : null;
+    const avgActual = mean(rows.map(r=>r['%Rll 30']));
+    const avgObj = mean(rows.map(r=>r['Objetivos.Rll Obj 30']));
+    const delta = (typeof avgActual==='number' && typeof avgObj==='number') ? (avgObj-avgActual) : null;
+    const estados = rows.map(r=>r['Master Mes.Estado presencial']).filter(e=>e!==null && e!==undefined && e!=='');
+    const activos = estados.length ? estados.filter(e=>String(e).trim().toLocaleUpperCase('es')==='ACTIVO').length/estados.length : null;
+
+    const cards = [
+      { label:'Asesores en seguimiento', value:fmtNum(asesores), sub:'nombres únicos filtrados', color:COLORS.accent },
+      { label:'% Cumplimiento', value:fmtPct(cumplimiento), sub:'Óptimo + Controlado', color:COLORS.optimo },
+      { label:'% En riesgo', value:fmtPct(enRiesgo), sub:'Riesgo + Crítico', color:COLORS.critico },
+      { label:'%Rll30 vs objetivo', value:fmtPct(avgActual), sub: delta===null ? 'sin datos de objetivo' : (delta>=0 ? ('▼ '+fmtPct(Math.abs(delta))+' bajo objetivo') : ('▲ '+fmtPct(Math.abs(delta))+' sobre objetivo')), color: delta!==null && delta<0 ? COLORS.critico : COLORS.optimo },
+      { label:'% Activos', value:fmtPct(activos), sub:'sobre estado presencial', color:COLORS.controlado },
+    ];
+    document.getElementById('kpiRow').innerHTML = cards.map(c=>`
+      <div class="kpi-card" style="--bar-color:${c.color}">
+        <p class="kpi-label">${c.label}</p><p class="kpi-value">${c.value}</p><p class="kpi-sub">${c.sub}</p>
+      </div>`).join('');
+  }
+
+  function renderHealthStrip(rows){
+    const cats = rows.map(r=>r['Cat Reitero']).filter(c=>c!==null && CAT_ORDER.includes(c));
+    const total = cats.length;
+    const strip = document.getElementById('healthStrip');
+    if(!total){ strip.innerHTML = `<span style="width:100%;background:var(--surface-2)"></span>`; document.getElementById('healthPct').textContent='sin datos'; return; }
+    let html='';
+    CAT_ORDER.forEach(cat=>{ const pct = cats.filter(c=>c===cat).length/total*100; if(pct>0) html += `<span style="width:${pct}%;background:${catColor(cat)}" title="${cat}: ${pct.toFixed(1)}%"></span>`; });
+    strip.innerHTML = html;
+    const good = cats.filter(c=>c==='Óptimo'||c==='Controlado').length/total*100;
+    document.getElementById('healthPct').textContent = good.toFixed(1)+'% saludable';
+  }
+
+  /* ---------------- VISTA EJECUTIVA: movimiento de críticos mes a mes ---------------- */
+  // Respeta programa/plataforma/jefe/gestion/búsqueda, pero ignora el filtro de Mes (necesita
+  // ver todos los meses para comparar) y el de Categoría (acá la categoría ES lo que se calcula).
+  function weeklyMatchesBaseFilters(row){
+    if(filters.programa!=='todos' && row['Programa']!==filters.programa) return false;
+    if(filters.plataforma!=='todos' && row['PLATAFORMA']!==filters.plataforma) return false;
+    if(filters.jefe!=='todos' && row['Jefe Directo']!==filters.jefe) return false;
+    if(filters.gestion!=='todos' && gestionOf(row)!==filters.gestion) return false;
+    if(filters.search){
+      const nm = String(row['Nombre Completo']||'').toLocaleLowerCase('es');
+      if(!nm.includes(filters.search.toLocaleLowerCase('es'))) return false;
+    }
+    return true;
+  }
+  function asesorKey(r){ return [r['Nombre Completo'], r['Programa'], r['PLATAFORMA']].join('|'); }
+
+  function computeCriticalMovement(){
+    const monthlyRows = RAW.impMes.filter(weeklyMatchesBaseFilters);
+    const meses = uniqueSorted(monthlyRows.map(r=>r['Mes']));
+    const critSetByMonth = new Map();
+    meses.forEach(m=>{
+      const set = new Set(monthlyRows.filter(r=>r['Mes']===m && r['Cat Reitero']==='Crítico').map(asesorKey));
+      critSetByMonth.set(m, set);
+    });
+    const week1RiskByMonth = new Map();
+    meses.forEach(m=>{
+      const wk = RAW.imp.filter(r=>r['Mes']===m && r['Semana']==='Semana 1' && weeklyMatchesBaseFilters(r) && r['Cat Semana Rll30']==='Riesgo');
+      week1RiskByMonth.set(m, new Set(wk.map(asesorKey)));
+    });
+
+    return meses.map((m, i)=>{
+      const critSet = critSetByMonth.get(m);
+      const prevSet = i>0 ? critSetByMonth.get(meses[i-1]) : null;
+      const seMantienen = prevSet ? [...prevSet].filter(k=>critSet.has(k)).length : null;
+      const nuevos = prevSet ? [...critSet].filter(k=>!prevSet.has(k)).length : null;
+      const mejoran = prevSet ? [...prevSet].filter(k=>!critSet.has(k)).length : null;
+      const wk1Set = week1RiskByMonth.get(m) || new Set();
+      const tempranos = [...critSet].filter(k=>wk1Set.has(k)).length;
+      return { mes:m, total: critSet.size, seMantienen, nuevos, mejoran, tempranos };
+    });
+  }
+
+  function renderExecView(){
+    const data = computeCriticalMovement();
+    const kpiEl = document.getElementById('execKpiRow');
+    const tableEl = document.getElementById('execTable');
+    if(!data.length){ kpiEl.innerHTML=''; tableEl.innerHTML = '<tr><td style="padding:14px;color:var(--muted)">Sin datos suficientes.</td></tr>'; return; }
+
+    const last = data[data.length-1];
+    const cards = [
+      { label:'Críticos al cierre ('+mesLabel(last.mes)+')', value:fmtNum(last.total), color:COLORS.critico },
+      { label:'Se mantienen (vs. mes anterior)', value: last.seMantienen===null?'—':fmtNum(last.seMantienen), sub:'seguían críticos del mes pasado', color:COLORS.riesgo },
+      { label:'Nuevos (se suman)', value: last.nuevos===null?'—':fmtNum(last.nuevos), sub:'no eran críticos el mes pasado', color:COLORS.critico },
+      { label:'Mejoraron', value: last.mejoran===null?'—':fmtNum(last.mejoran), sub:'dejaron de ser críticos', color:COLORS.optimo },
+      { label:'Detectados desde Semana 1', value: last.total ? fmtPct(last.tempranos/last.total,0) : '—', sub: fmtNum(last.tempranos)+' de '+fmtNum(last.total), color:COLORS.accent },
+    ];
+    kpiEl.innerHTML = cards.map(c=>`
+      <div class="kpi-card" style="--bar-color:${c.color}">
+        <p class="kpi-label">${c.label}</p><p class="kpi-value">${c.value}</p>${c.sub?`<p class="kpi-sub">${c.sub}</p>`:''}
+      </div>`).join('');
+
+    const thead = '<thead><tr><th>Mes</th><th>Críticos al cierre</th><th>Se mantienen</th><th>Nuevos (se suman)</th><th>Mejoraron</th><th>Detectados desde Sem. 1</th></tr></thead>';
+    const tbody = '<tbody>' + data.map(d=>`
+      <tr>
+        <td class="mono">${mesLabel(d.mes)}</td>
+        <td class="mono"><span class="badge badge-critico">${fmtNum(d.total)}</span></td>
+        <td class="mono">${d.seMantienen===null?'—':fmtNum(d.seMantienen)}</td>
+        <td class="mono" style="color:${d.nuevos?COLORS.critico:'inherit'}">${d.nuevos===null?'—':fmtNum(d.nuevos)}</td>
+        <td class="mono" style="color:${d.mejoran?COLORS.optimo:'inherit'}">${d.mejoran===null?'—':fmtNum(d.mejoran)}</td>
+        <td class="mono">${d.total?fmtPct(d.tempranos/d.total,0):'—'} (${fmtNum(d.tempranos)})</td>
+      </tr>`).join('') + '</tbody>';
+    tableEl.innerHTML = thead + tbody;
+  }
+
+  function renderCatChart(){
+    const groupByMes = filters.mes==='todos';
+    const rows = getFilteredMonthly(true);
+    const groupKey = groupByMes ? 'Mes' : 'PLATAFORMA';
+    const labels = uniqueSorted(rows.map(r=>r[groupKey]));
+    const labelFn = groupByMes ? (l=>'Mes '+mesLabel(l)) : (l=>l);
+
+    const datasets = CAT_ORDER.map(cat=>({
+      label:cat, backgroundColor:catColor(cat), hoverBackgroundColor:catColor(cat),
+      hoverBorderColor:'#101828', hoverBorderWidth:1.5, borderRadius:2,
+      data: labels.map(lab=>rows.filter(r=>r[groupKey]===lab && r['Cat Reitero']===cat).length), stack:'cat'
+    }));
+    const ctx = document.getElementById('chartCat').getContext('2d');
+    if(charts.cat) charts.cat.destroy();
+    charts.cat = new Chart(ctx, { type:'bar', data:{ labels: labels.map(labelFn), datasets },
+      options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index', intersect:true},
+        plugins:{ legend:{position:'bottom', labels:{boxWidth:10,font:{size:11}}},
+          tooltip:{ backgroundColor:'#0B1B36', padding:10, titleFont:{family:'Sora',weight:'700'}, bodyFont:{family:'Inter'},
+            callbacks:{ label:function(ctx){
+              const val = ctx.parsed.y;
+              const total = ctx.chart.data.datasets.reduce((s,d)=>s+(d.data[ctx.dataIndex]||0),0);
+              const pct = total ? (val/total*100).toFixed(1) : '0.0';
+              return `${ctx.dataset.label}: ${val} asesor(es) (${pct}%)`;
+            } } } },
+        scales:{ x:{stacked:true, grid:{display:false}}, y:{stacked:true, grid:{color:'#eef1f6'}, ticks:{precision:0}} } } });
+  }
+
+  function renderTrendChart(){
+    const rows = getFilteredMonthly(false);
+    const meses = uniqueSorted(rows.map(r=>r['Mes']));
+    const actual = meses.map(m=>mean(rows.filter(r=>r['Mes']===m).map(r=>r['%Rll 30'])));
+    const objetivo = meses.map(m=>mean(rows.filter(r=>r['Mes']===m).map(r=>r['Objetivos.Rll Obj 30'])));
+    const ctx = document.getElementById('chartTrend').getContext('2d');
+    if(charts.trend) charts.trend.destroy();
+    charts.trend = new Chart(ctx, { type:'line',
+      data:{ labels: meses.map(m=>'Mes '+mesLabel(m)),
+        datasets:[
+          { label:'%Rll30 real', data:actual, borderColor:COLORS.accent, backgroundColor:COLORS.accent, tension:.3,
+            pointRadius:4, pointHoverRadius:7, pointHoverBackgroundColor:COLORS.accent, pointHoverBorderColor:'#fff', pointHoverBorderWidth:2 },
+          { label:'Objetivo', data:objetivo, borderColor:COLORS.muted, backgroundColor:COLORS.muted, borderDash:[6,4], tension:.3,
+            pointRadius:3, pointHoverRadius:6, pointHoverBackgroundColor:COLORS.muted, pointHoverBorderColor:'#fff', pointHoverBorderWidth:2 }
+        ]},
+      options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index', intersect:false},
+        plugins:{ legend:{position:'bottom', labels:{boxWidth:10,font:{size:11}}},
+          tooltip:{ backgroundColor:'#0B1B36', padding:10, titleFont:{family:'Sora',weight:'700'}, bodyFont:{family:'Inter'},
+            callbacks:{ label:function(ctx){
+              const v = ctx.parsed.y;
+              return `${ctx.dataset.label}: ${typeof v==='number' ? (v*100).toFixed(1)+'%' : '—'}`;
+            } } } },
+        scales:{ y:{ ticks:{callback:v=>(v*100).toFixed(0)+'%'}, grid:{color:'#eef1f6'} }, x:{grid:{display:false}} } } });
+  }
+
+  function renderCatMensualChart(){
+    const rows = getFilteredMonthly(false); // siempre todos los meses, para ver la evolución completa
+    const meses = uniqueSorted(rows.map(r=>r['Mes']));
+    const datasets = CAT_ORDER.map(cat=>({
+      label:cat, backgroundColor:catColor(cat), hoverBackgroundColor:catColor(cat),
+      hoverBorderColor:'#101828', hoverBorderWidth:1.5, borderRadius:2,
+      data: meses.map(m=>rows.filter(r=>r['Mes']===m && r['Cat Reitero']===cat).length), stack:'catmes'
+    }));
+    const ctx = document.getElementById('chartCatMensual').getContext('2d');
+    if(charts.catMensual) charts.catMensual.destroy();
+    charts.catMensual = new Chart(ctx, { type:'bar', data:{ labels: meses.map(m=>'Mes '+mesLabel(m)), datasets },
+      options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index', intersect:true},
+        plugins:{ legend:{position:'bottom', labels:{boxWidth:10,font:{size:11}}},
+          tooltip:{ backgroundColor:'#0B1B36', padding:10, titleFont:{family:'Sora',weight:'700'}, bodyFont:{family:'Inter'},
+            callbacks:{ label:function(ctx){
+              const val = ctx.parsed.y;
+              const total = ctx.chart.data.datasets.reduce((s,d)=>s+(d.data[ctx.dataIndex]||0),0);
+              const pct = total ? (val/total*100).toFixed(1) : '0.0';
+              return `${ctx.dataset.label}: ${val} asesor(es) (${pct}%)`;
+            } } } },
+        scales:{ x:{stacked:true, grid:{display:false}}, y:{stacked:true, grid:{color:'#eef1f6'}, ticks:{precision:0}} } } });
+  }
+
+  function renderHeatmap(){
+    const heatTable = document.getElementById('heatTable');
+    if(!RAW.imp.length){ heatTable.innerHTML = '<tr><td style="padding:16px;color:var(--muted)">Aún no hay detalle semanal disponible.</td></tr>'; document.getElementById('heatSub').textContent='Detalle semanal no disponible'; return; }
+    const meses = uniqueSorted(RAW.impMes.map(r=>r['Mes']));
+    const targetMes = filters.mes!=='todos' ? filters.mes : meses[meses.length-1];
+    document.getElementById('heatSub').textContent = 'Categoría Rll30 por asesor, semana a semana — Mes ' + mesLabel(targetMes) + (filters.mes==='todos' ? ' (más reciente)' : '');
+
+    // El filtro de Categoría es MENSUAL (Cat Reitero) — decide qué asesores aparecen en el mapa.
+    // Las celdas semanales muestran su propia categoría (Cat Semana Rll30), que NUNCA es "Crítico"
+    // (esa vista solo tiene Óptimo/Controlado/Riesgo) — por eso no se puede aplicar el mismo filtro
+    // de categoría directo sobre las filas semanales, o el heatmap queda vacío al filtrar Crítico.
+    const monthlySet = new Set(
+      getFilteredMonthly(false).filter(r=>String(r['Mes'])===String(targetMes))
+        .map(r=>[r['Nombre Completo'], r['Programa'], r['PLATAFORMA']].join('|'))
+    );
+    const weekly = RAW.imp.filter(r => {
+      if(String(r['Mes'])!==String(targetMes)) return false;
+      const key = [r['Nombre Completo'], r['Programa'], r['PLATAFORMA']].join('|');
+      if(!monthlySet.has(key)) return false;
+      if(filters.jefe!=='todos' && r['Jefe Directo']!==filters.jefe) return false;
+      if(filters.search){
+        const nm = String(r['Nombre Completo']||'').toLocaleLowerCase('es');
+        if(!nm.includes(filters.search.toLocaleLowerCase('es'))) return false;
+      }
+      return true;
+    });
+    const monthlyMap = new Map();
+    RAW.impMes.forEach(r=>{ monthlyMap.set([r['Nombre Completo'], r['Programa'], r['PLATAFORMA'], r['Mes']].join('|'), r['Cat Reitero']); });
+
+    const byAsesor = new Map();
+    weekly.forEach(r=>{
+      const key = [r['Nombre Completo'], r['Programa'], r['PLATAFORMA']].join('|');
+      if(!byAsesor.has(key)) byAsesor.set(key, { nombre:r['Nombre Completo'], programa:r['Programa'], plataforma:r['PLATAFORMA'], weeks:{} });
+      byAsesor.get(key).weeks[r['Semana']] = r['Cat Semana Rll30'];
+    });
+
+    let entries = [...byAsesor.values()];
+    const riskRank = { 'Crítico':0,'Riesgo':1,'Controlado':2,'Óptimo':3 };
+    entries.sort((a,b)=>{
+      const ra = Math.min(...WEEK_COLS.map(w=>riskRank[a.weeks[w]] ?? 9));
+      const rb = Math.min(...WEEK_COLS.map(w=>riskRank[b.weeks[w]] ?? 9));
+      if(ra!==rb) return ra-rb;
+      return String(a.nombre).localeCompare(String(b.nombre),'es');
+    });
+    entries = entries.slice(0, HEATMAP_CAP);
+
+    const thead = '<thead><tr><th>Asesor</th><th>Programa</th><th>Plataforma</th>' + WEEK_COLS.map(w=>`<th>${w}</th>`).join('') + '<th>Cat. Mensual</th></tr></thead>';
+    const tbody = '<tbody>' + entries.map(e=>{
+      const catMes = monthlyMap.get([e.nombre, e.programa, e.plataforma, targetMes].join('|'));
+      const cells = WEEK_COLS.map(w=>{
+        const c = e.weeks[w];
+        if(!c) return `<td><span class="cell-empty">—</span></td>`;
+        return `<td><span class="cell-badge" style="background:${catColor(c)}22;color:${catColor(c)}">${c}</span></td>`;
+      }).join('');
+      return `<tr><td class="name">${escapeHtml(e.nombre)}</td><td>${escapeHtml(e.programa)}</td><td>${escapeHtml(e.plataforma)}</td>${cells}<td><span class="badge ${badgeClass(catMes)}">${catMes||'—'}</span></td></tr>`;
+    }).join('') + '</tbody>';
+    heatTable.innerHTML = thead + tbody;
+  }
+
+  /* ---------------- DETAIL TABLE ---------------- */
+  const DETAIL_COLS = [
+    { key:'Nombre Completo', label:'Asesor' }, { key:'Programa', label:'Programa' }, { key:'PLATAFORMA', label:'Plataforma' },
+    { key:'Jefe Directo', label:'Jefe Directo' },
+    { key:'Mes', label:'Mes' }, { key:'Cat Reitero', label:'Categoría' }, { key:'%Rll 30', label:'%Rll30' },
+    { key:'ObjRll30', label:'Objetivo' }, { key:'Delta', label:'Delta' }, { key:'Estado', label:'Estado' }, { key:'Permanencia', label:'Permanencia' },
+  ];
+  function detailRowsComputed(){
+    return getFilteredMonthly(true).map(r=>{
+      const actual = r['%Rll 30'], obj = r['Objetivos.Rll Obj 30'];
+      const delta = (typeof actual==='number' && typeof obj==='number') ? (obj-actual) : null;
+      return { 'Nombre Completo':r['Nombre Completo'], 'Programa':r['Programa'], 'PLATAFORMA':r['PLATAFORMA'], 'Jefe Directo':r['Jefe Directo'], 'Mes':r['Mes'],
+        'Cat Reitero':r['Cat Reitero'], '%Rll 30':actual, 'ObjRll30':obj, 'Delta':delta,
+        'Estado':r['Master Mes.Estado presencial'], 'Permanencia':r['Master Mes.Tiempo de permanencia'] };
+    });
+  }
+  function renderDetailTable(){
+    let rows = detailRowsComputed();
+    const NUMERIC_COLS = new Set(['Mes','%Rll 30','ObjRll30','Delta']);
+    rows.sort((a,b)=>{
+      const raw_a=a[sortState.col], raw_b=b[sortState.col];
+      if(NUMERIC_COLS.has(sortState.col)){
+        const va=(typeof raw_a==='number'&&!isNaN(raw_a))?raw_a:null, vb=(typeof raw_b==='number'&&!isNaN(raw_b))?raw_b:null;
+        if(va===null&&vb===null) return 0; if(va===null) return 1; if(vb===null) return -1;
+        const cmp=va-vb; return sortState.dir==='asc'?cmp:-cmp;
+      }
+      let va=raw_a, vb=raw_b; if(va===null||va===undefined) va=''; if(vb===null||vb===undefined) vb='';
+      const cmp=String(va).localeCompare(String(vb),'es'); return sortState.dir==='asc'?cmp:-cmp;
+    });
+    const totalPages = Math.max(1, Math.ceil(rows.length/PAGE_SIZE));
+    if(page>totalPages) page=totalPages;
+    const pageRows = rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+    const thead = '<thead><tr>' + DETAIL_COLS.map(c=>{
+      const arrow = sortState.col===c.key ? `<span class="arrow">${sortState.dir==='asc'?'▲':'▼'}</span>` : '';
+      return `<th data-col="${c.key}">${c.label}${arrow}</th>`;
+    }).join('') + '</tr></thead>';
+    const tbody = '<tbody>' + pageRows.map(r=>`
+      <tr>
+        <td>${escapeHtml(r['Nombre Completo'])}</td><td>${escapeHtml(r['Programa'])}</td><td>${escapeHtml(r['PLATAFORMA'])}</td>
+        <td>${escapeHtml(r['Jefe Directo'])}</td>
+        <td class="mono">${mesLabel(r['Mes'])}</td>
+        <td><span class="badge ${badgeClass(r['Cat Reitero'])}">${r['Cat Reitero']||'—'}</span></td>
+        <td class="mono">${fmtPct(r['%Rll 30'])}</td><td class="mono">${fmtPct(r['ObjRll30'])}</td>
+        <td class="mono" style="color:${r['Delta']===null?'inherit':(r['Delta']>=0?COLORS.optimo:COLORS.critico)}">${r['Delta']===null?'—':fmtPct(r['Delta'])}</td>
+        <td>${escapeHtml(r['Estado']||'—')}</td><td>${escapeHtml(r['Permanencia']||'—')}</td>
+      </tr>`).join('') + '</tbody>';
+    const table = document.getElementById('detailTable');
+    table.innerHTML = thead + tbody;
+    table.querySelectorAll('th').forEach(th=>{
+      th.onclick = ()=>{ const col=th.getAttribute('data-col'); if(sortState.col===col) sortState.dir = sortState.dir==='asc'?'desc':'asc'; else { sortState.col=col; sortState.dir='asc'; } renderDetailTable(); };
+    });
+    document.getElementById('pagerInfo').textContent = `Mostrando ${rows.length?((page-1)*PAGE_SIZE+1):0}–${Math.min(page*PAGE_SIZE, rows.length)} de ${fmtNum(rows.length)}`;
+    document.getElementById('prevPage').disabled = page<=1;
+    document.getElementById('nextPage').disabled = page>=totalPages;
+  }
+
+})();
+</script>
+</body>
+</html>
