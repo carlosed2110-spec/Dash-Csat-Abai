@@ -57,6 +57,22 @@
   .clear-btn:hover{border-color:var(--critico);color:var(--critico);}
   .meta-pill{font-size:12px;color:var(--accent-dark);background:var(--accent-soft);border:1px solid var(--accent-soft);padding:8px 14px;border-radius:20px;font-family:var(--font-mono);font-weight:600;white-space:nowrap;}
 
+  .ms-filter{position:relative;}
+  .ms-trigger{font-family:var(--font-body);font-size:13px;padding:8px 11px;border-radius:8px;border:1px solid var(--border-strong);
+    background:#fff;color:var(--ink);min-width:170px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .ms-trigger:hover{border-color:var(--accent);}
+  .ms-trigger .arrow{font-size:10px;color:var(--muted-2);flex-shrink:0;}
+  .ms-panel{position:absolute;top:calc(100% + 6px);left:0;z-index:30;background:#fff;border:1px solid var(--border);border-radius:10px;
+    box-shadow:0 8px 24px rgba(16,24,40,0.14);padding:10px;min-width:220px;max-width:280px;}
+  .ms-search{width:100%;font-family:var(--font-body);font-size:13px;padding:7px 10px;border-radius:7px;border:1px solid var(--border-strong);margin-bottom:8px;}
+  .ms-clear-btn{width:100%;font-family:var(--font-body);font-weight:600;font-size:12px;padding:6px 10px;border-radius:7px;
+    border:1px solid var(--border-strong);background:var(--surface);color:var(--muted);cursor:pointer;margin-bottom:8px;}
+  .ms-clear-btn:hover{border-color:var(--critico);color:var(--critico);}
+  .ms-options{max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;}
+  .ms-option{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 8px;border-radius:6px;cursor:pointer;}
+  .ms-option:hover{background:var(--surface);}
+  .ms-option input{margin:0;accent-color:var(--accent);}
+  .ms-empty{font-size:12.5px;color:var(--muted-2);padding:8px 4px;}
   .kpi-selector{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
   .kpi-pill{font-family:var(--font-body); font-weight:700; font-size:12.5px; padding:9px 16px; border-radius:20px;
     border:1px solid var(--border-strong); background:#fff; color:var(--muted); cursor:pointer; transition:all .15s ease;}
@@ -159,12 +175,12 @@
     <div id="reglaWarning" class="regla-warning" style="display:none;"></div>
 
     <div class="filterbar">
-      <div class="filter-group"><label>Mes</label><select id="fMes"></select></div>
-      <div class="filter-group"><label>Programa</label><select id="fPrograma"></select></div>
-      <div class="filter-group"><label>Plataforma</label><select id="fPlataforma"></select></div>
-      <div class="filter-group"><label>Jefe Directo</label><select id="fJefe"></select></div>
-      <div class="filter-group"><label>Gestión</label><select id="fGestion"></select></div>
-      <div class="filter-group"><label>Categoría</label><select id="fCategoria"></select></div>
+      <div class="filter-group ms-filter" id="fg-mes"><label>Mes</label></div>
+      <div class="filter-group ms-filter" id="fg-programa"><label>Programa</label></div>
+      <div class="filter-group ms-filter" id="fg-plataforma"><label>Plataforma</label></div>
+      <div class="filter-group ms-filter" id="fg-jefe"><label>Jefe Directo</label></div>
+      <div class="filter-group ms-filter" id="fg-gestion"><label>Gestión</label></div>
+      <div class="filter-group ms-filter" id="fg-categoria"><label>Categoría</label></div>
       <div class="filter-group"><label>Buscar asesor</label><input type="text" class="search-input" id="fSearch" placeholder="Nombre del asesor..."></div>
       <button class="clear-btn" id="clearFilters" type="button">Limpiar filtros</button>
       <div class="spacer"></div>
@@ -296,7 +312,7 @@
   /* ==================================================================== */
   let RAW = { impMesRaw: [], impRaw: [], impMes: [], imp: [], objetivos: [], reglas: {}, tipoGest: new Map(), estadoAgentes: new Map() };
   let fileCache = new Map(); // key: filename|size -> parsed rows, evita re-parsear en cada "Recargar"
-  let filters = { mes:'todos', programa:'todos', plataforma:'todos', jefe:'todos', gestion:'todos', categoria:'todos', search:'' };
+  let filters = { mes:new Set(), programa:new Set(), plataforma:new Set(), jefe:new Set(), gestion:new Set(), categoria:new Set(), search:'' };
   let sortState = { col:'Nombre Completo', dir:'asc' };
   let page = 1;
   let charts = {};
@@ -512,15 +528,15 @@
   function gestionOf(row){ return row['TipoGest.Gestión Plat.1'] ?? row['TipoGest.Gestión Plat'] ?? null; }
 
   function matchesFilters(row, includeMes){
-    if(includeMes && filters.mes!=='todos' && String(row['Mes'])!==String(filters.mes)) return false;
-    if(filters.programa!=='todos' && row['Programa']!==filters.programa) return false;
-    if(filters.plataforma!=='todos' && row['PLATAFORMA']!==filters.plataforma) return false;
-    if(filters.jefe!=='todos' && row['Jefe Directo']!==filters.jefe) return false;
-    if(filters.gestion!=='todos' && gestionOf(row)!==filters.gestion) return false;
-    if(filters.categoria!=='todos'){
+    if(includeMes && filters.mes.size && !filters.mes.has(String(row['Mes']))) return false;
+    if(filters.programa.size && !filters.programa.has(String(row['Programa']))) return false;
+    if(filters.plataforma.size && !filters.plataforma.has(String(row['PLATAFORMA']))) return false;
+    if(filters.jefe.size && !filters.jefe.has(String(row['Jefe Directo']))) return false;
+    if(filters.gestion.size && !filters.gestion.has(String(gestionOf(row)))) return false;
+    if(filters.categoria.size){
       // filas mensuales usan 'Cat Reitero', filas semanales usan 'Cat Semana Rll30' — hay que mirar la que exista
       const cat = ('Cat Reitero' in row) ? row['Cat Reitero'] : row['Cat Semana Rll30'];
-      if(cat!==filters.categoria) return false;
+      if(!filters.categoria.has(String(cat))) return false;
     }
     if(filters.search){
       const nm = String(row['Nombre Completo']||'').toLocaleLowerCase('es');
@@ -567,12 +583,97 @@
   /* ==================================================================== */
   /*  FILTERS UI + RENDER                                                  */
   /* ==================================================================== */
-  function fillSelect(el, values, allLabel, labeler){
-    el.innerHTML = '';
-    const optAll = document.createElement('option'); optAll.value='todos'; optAll.textContent=allLabel; el.appendChild(optAll);
-    values.forEach(v=>{
-      const o = document.createElement('option'); o.value=v; o.textContent = labeler ? labeler(v) : v; el.appendChild(o);
-    });
+  /* ---------------- COMPONENTE MULTI-SELECCIÓN (checkbox + buscador) ---------------- */
+  // Reemplaza los <select> nativos por un botón + panel desplegable con checkboxes,
+  // buscador y "Limpiar selección", igual al de Estado Laboral en el panel de KPI.
+  const MULTISELECT_DEFS = [
+    { key:'mes', groupId:'fg-mes', allLabel:'Todos los meses', valuesFn:()=>uniqueSorted(RAW.impMes.map(r=>r['Mes'])), displayFn:mesLabel },
+    { key:'programa', groupId:'fg-programa', allLabel:'Todos los programas', valuesFn:()=>uniqueSorted(RAW.impMes.map(r=>r['Programa'])) },
+    { key:'plataforma', groupId:'fg-plataforma', allLabel:'Todas las plataformas', valuesFn:()=>uniqueSorted(RAW.impMes.map(r=>r['PLATAFORMA'])) },
+    { key:'jefe', groupId:'fg-jefe', allLabel:'Todos los jefes directos', valuesFn:()=>uniqueSorted(RAW.impMes.map(r=>r['Jefe Directo'])) },
+    { key:'gestion', groupId:'fg-gestion', allLabel:'Toda gestión', valuesFn:()=>uniqueSorted(RAW.impMes.map(gestionOf)) },
+    { key:'categoria', groupId:'fg-categoria', allLabel:'Toda categoría', valuesFn:()=>CAT_ORDER },
+  ];
+
+  function closeAllMsPanels(except){
+    document.querySelectorAll('.ms-panel').forEach(p=>{ if(p!==except) p.style.display='none'; });
+  }
+  document.addEventListener('click', (e)=>{
+    if(!e.target.closest('.ms-filter')) closeAllMsPanels();
+  });
+
+  function buildMultiSelect(def){
+    const group = document.getElementById(def.groupId);
+    // conserva el <label> ya presente, arma el resto
+    const label = group.querySelector('label');
+    group.innerHTML = '';
+    if(label) group.appendChild(label);
+
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'ms-trigger';
+    btn.innerHTML = `<span class="ms-trigger-label"></span><span class="arrow">▾</span>`;
+
+    const panel = document.createElement('div');
+    panel.className = 'ms-panel'; panel.style.display = 'none';
+    panel.innerHTML = `
+      <input type="text" class="ms-search" placeholder="Buscar...">
+      <button type="button" class="ms-clear-btn">Limpiar selección</button>
+      <div class="ms-options"></div>`;
+
+    group.appendChild(btn);
+    group.appendChild(panel);
+
+    const searchEl = panel.querySelector('.ms-search');
+    const clearBtn = panel.querySelector('.ms-clear-btn');
+    const optsEl = panel.querySelector('.ms-options');
+    const labelEl = btn.querySelector('.ms-trigger-label');
+
+    function updateTriggerLabel(){
+      const sel = filters[def.key];
+      if(sel.size===0) labelEl.textContent = def.allLabel;
+      else if(sel.size===1){ const v=[...sel][0]; labelEl.textContent = def.displayFn ? def.displayFn(v) : v; }
+      else labelEl.textContent = sel.size+' seleccionados';
+    }
+
+    function renderOptions(term){
+      const values = def.valuesFn();
+      const t = (term||'').toLocaleLowerCase('es');
+      const filtered = values.filter(v=>{
+        const lab = def.displayFn ? String(def.displayFn(v)) : String(v);
+        return lab.toLocaleLowerCase('es').includes(t);
+      });
+      if(!filtered.length){ optsEl.innerHTML = '<div class="ms-empty">Sin resultados</div>'; return; }
+      optsEl.innerHTML = filtered.map(v=>{
+        const lab = def.displayFn ? def.displayFn(v) : v;
+        const checked = filters[def.key].has(String(v)) ? 'checked' : '';
+        return `<label class="ms-option"><input type="checkbox" value="${escapeHtml(String(v))}" ${checked}> ${escapeHtml(String(lab))}</label>`;
+      }).join('');
+      optsEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+        cb.onchange = ()=>{
+          if(cb.checked) filters[def.key].add(cb.value); else filters[def.key].delete(cb.value);
+          updateTriggerLabel();
+          page = 1;
+          render();
+        };
+      });
+    }
+
+    btn.onclick = (e)=>{
+      e.stopPropagation();
+      const isOpen = panel.style.display === 'block';
+      closeAllMsPanels(isOpen ? null : panel);
+      panel.style.display = isOpen ? 'none' : 'block';
+      if(!isOpen){ searchEl.value=''; renderOptions(''); searchEl.focus(); }
+    };
+    panel.onclick = (e)=> e.stopPropagation();
+    searchEl.oninput = ()=> renderOptions(searchEl.value);
+    clearBtn.onclick = ()=>{ filters[def.key].clear(); renderOptions(searchEl.value); updateTriggerLabel(); page=1; render(); };
+
+    updateTriggerLabel();
+  }
+
+  function buildAllMultiSelects(){
+    MULTISELECT_DEFS.forEach(buildMultiSelect);
   }
 
   /* ---------------- SELECTOR DE KPI ---------------- */
@@ -613,30 +714,12 @@
   }
 
   function initFiltersAndRender(){
-    filters = { mes:'todos', programa:'todos', plataforma:'todos', jefe:'todos', gestion:'todos', categoria:'todos', search:'' };
+    filters = { mes:new Set(), programa:new Set(), plataforma:new Set(), jefe:new Set(), gestion:new Set(), categoria:new Set(), search:'' };
     sortState = { col:'Nombre Completo', dir:'asc' };
     page = 1;
 
-    const meses = uniqueSorted(RAW.impMes.map(r=>r['Mes']));
-    const programas = uniqueSorted(RAW.impMes.map(r=>r['Programa']));
-    const plataformas = uniqueSorted(RAW.impMes.map(r=>r['PLATAFORMA']));
-    const jefes = uniqueSorted(RAW.impMes.map(r=>r['Jefe Directo']));
-    const gestiones = uniqueSorted(RAW.impMes.map(gestionOf));
-
-    fillSelect(document.getElementById('fMes'), meses, 'Todos los meses', mesLabel);
-    fillSelect(document.getElementById('fPrograma'), programas, 'Todos los programas');
-    fillSelect(document.getElementById('fPlataforma'), plataformas, 'Todas las plataformas');
-    fillSelect(document.getElementById('fJefe'), jefes, 'Todos los jefes directos');
-    fillSelect(document.getElementById('fGestion'), gestiones, 'Toda gestión');
-    fillSelect(document.getElementById('fCategoria'), CAT_ORDER, 'Toda categoría');
+    buildAllMultiSelects();
     document.getElementById('fSearch').value = '';
-
-    document.getElementById('fMes').onchange = e=>{ filters.mes=e.target.value; page=1; render(); };
-    document.getElementById('fPrograma').onchange = e=>{ filters.programa=e.target.value; page=1; render(); };
-    document.getElementById('fPlataforma').onchange = e=>{ filters.plataforma=e.target.value; page=1; render(); };
-    document.getElementById('fJefe').onchange = e=>{ filters.jefe=e.target.value; page=1; render(); };
-    document.getElementById('fGestion').onchange = e=>{ filters.gestion=e.target.value; page=1; render(); };
-    document.getElementById('fCategoria').onchange = e=>{ filters.categoria=e.target.value; page=1; render(); };
 
     let searchTimer=null;
     document.getElementById('fSearch').oninput = e=>{ clearTimeout(searchTimer); searchTimer=setTimeout(()=>{ filters.search=e.target.value; page=1; render(); },200); };
@@ -708,10 +791,10 @@
   // Respeta programa/plataforma/jefe/gestion/búsqueda, pero ignora el filtro de Mes (necesita
   // ver todos los meses para comparar) y el de Categoría (acá la categoría ES lo que se calcula).
   function weeklyMatchesBaseFilters(row){
-    if(filters.programa!=='todos' && row['Programa']!==filters.programa) return false;
-    if(filters.plataforma!=='todos' && row['PLATAFORMA']!==filters.plataforma) return false;
-    if(filters.jefe!=='todos' && row['Jefe Directo']!==filters.jefe) return false;
-    if(filters.gestion!=='todos' && gestionOf(row)!==filters.gestion) return false;
+    if(filters.programa.size && !filters.programa.has(String(row['Programa']))) return false;
+    if(filters.plataforma.size && !filters.plataforma.has(String(row['PLATAFORMA']))) return false;
+    if(filters.jefe.size && !filters.jefe.has(String(row['Jefe Directo']))) return false;
+    if(filters.gestion.size && !filters.gestion.has(String(gestionOf(row)))) return false;
     if(filters.search){
       const nm = String(row['Nombre Completo']||'').toLocaleLowerCase('es');
       if(!nm.includes(filters.search.toLocaleLowerCase('es'))) return false;
@@ -779,7 +862,7 @@
   }
 
   function renderCatChart(){
-    const groupByMes = filters.mes==='todos';
+    const groupByMes = filters.mes.size !== 1;
     const rows = getFilteredMonthly(true);
     const groupKey = groupByMes ? 'Mes' : 'PLATAFORMA';
     const labels = uniqueSorted(rows.map(r=>r[groupKey]));
@@ -858,8 +941,8 @@
     const heatTable = document.getElementById('heatTable');
     if(!RAW.imp.length){ heatTable.innerHTML = '<tr><td style="padding:16px;color:var(--muted)">Aún no hay detalle semanal disponible.</td></tr>'; document.getElementById('heatSub').textContent='Detalle semanal no disponible'; return; }
     const meses = uniqueSorted(RAW.impMes.map(r=>r['Mes']));
-    const targetMes = filters.mes!=='todos' ? filters.mes : meses[meses.length-1];
-    document.getElementById('heatSub').textContent = 'Categoría ' + KPI_CONFIG[currentKpi].shortLabel + ' por asesor, semana a semana — Mes ' + mesLabel(targetMes) + (filters.mes==='todos' ? ' (más reciente)' : '');
+    const targetMes = filters.mes.size===1 ? [...filters.mes][0] : meses[meses.length-1];
+    document.getElementById('heatSub').textContent = 'Categoría ' + KPI_CONFIG[currentKpi].shortLabel + ' por asesor, semana a semana — Mes ' + mesLabel(targetMes) + (filters.mes.size===1 ? '' : ' (más reciente)');
 
     // El filtro de Categoría es MENSUAL (Cat Reitero) — decide qué asesores aparecen en el mapa.
     // Las celdas semanales muestran su propia categoría (Cat Semana Rll30), que NUNCA es "Crítico"
@@ -873,7 +956,7 @@
       if(String(r['Mes'])!==String(targetMes)) return false;
       const key = [r['Nombre Completo'], r['Programa'], r['PLATAFORMA']].join('|');
       if(!monthlySet.has(key)) return false;
-      if(filters.jefe!=='todos' && r['Jefe Directo']!==filters.jefe) return false;
+      if(filters.jefe.size && !filters.jefe.has(String(r['Jefe Directo']))) return false;
       if(filters.search){
         const nm = String(r['Nombre Completo']||'').toLocaleLowerCase('es');
         if(!nm.includes(filters.search.toLocaleLowerCase('es'))) return false;
