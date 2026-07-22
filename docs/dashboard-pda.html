@@ -181,6 +181,7 @@
       <div class="filter-group ms-filter" id="fg-jefe"><label>Jefe Directo</label></div>
       <div class="filter-group ms-filter" id="fg-gestion"><label>Gestión</label></div>
       <div class="filter-group ms-filter" id="fg-categoria"><label>Categoría</label></div>
+      <div class="filter-group ms-filter" id="fg-estado"><label>Estado</label></div>
       <div class="filter-group"><label>Buscar asesor</label><input type="text" class="search-input" id="fSearch" placeholder="Nombre del asesor..."></div>
       <button class="clear-btn" id="clearFilters" type="button">Limpiar filtros</button>
       <div class="spacer"></div>
@@ -312,7 +313,7 @@
   /* ==================================================================== */
   let RAW = { impMesRaw: [], impRaw: [], impMes: [], imp: [], objetivos: [], reglas: {}, tipoGest: new Map(), estadoAgentes: new Map() };
   let fileCache = new Map(); // key: filename|size -> parsed rows, evita re-parsear en cada "Recargar"
-  let filters = { mes:new Set(), programa:new Set(), plataforma:new Set(), jefe:new Set(), gestion:new Set(), categoria:new Set(), search:'' };
+  let filters = { mes:new Set(), programa:new Set(), plataforma:new Set(), jefe:new Set(), gestion:new Set(), categoria:new Set(), estado:new Set(), search:'' };
   let sortState = { col:'Nombre Completo', dir:'asc' };
   let page = 1;
   let charts = {};
@@ -538,6 +539,7 @@
       const cat = ('Cat Reitero' in row) ? row['Cat Reitero'] : row['Cat Semana Rll30'];
       if(!filters.categoria.has(String(cat))) return false;
     }
+    if(filters.estado.size && !filters.estado.has(String(row['Master Mes.Estado presencial']))) return false;
     if(filters.search){
       const nm = String(row['Nombre Completo']||'').toLocaleLowerCase('es');
       if(!nm.includes(filters.search.toLocaleLowerCase('es'))) return false;
@@ -593,6 +595,7 @@
     { key:'jefe', groupId:'fg-jefe', allLabel:'Todos los jefes directos', valuesFn:()=>uniqueSorted(RAW.impMes.map(r=>r['Jefe Directo'])) },
     { key:'gestion', groupId:'fg-gestion', allLabel:'Toda gestión', valuesFn:()=>uniqueSorted(RAW.impMes.map(gestionOf)) },
     { key:'categoria', groupId:'fg-categoria', allLabel:'Toda categoría', valuesFn:()=>CAT_ORDER },
+    { key:'estado', groupId:'fg-estado', allLabel:'Todo estado', valuesFn:()=>uniqueSorted(RAW.impMes.map(r=>r['Master Mes.Estado presencial'])) },
   ];
 
   function closeAllMsPanels(except){
@@ -714,7 +717,7 @@
   }
 
   function initFiltersAndRender(){
-    filters = { mes:new Set(), programa:new Set(), plataforma:new Set(), jefe:new Set(), gestion:new Set(), categoria:new Set(), search:'' };
+    filters = { mes:new Set(), programa:new Set(), plataforma:new Set(), jefe:new Set(), gestion:new Set(), categoria:new Set(), estado:new Set(), search:'' };
     sortState = { col:'Nombre Completo', dir:'asc' };
     page = 1;
 
@@ -795,6 +798,9 @@
     if(filters.plataforma.size && !filters.plataforma.has(String(row['PLATAFORMA']))) return false;
     if(filters.jefe.size && !filters.jefe.has(String(row['Jefe Directo']))) return false;
     if(filters.gestion.size && !filters.gestion.has(String(gestionOf(row)))) return false;
+    // 'Estado' solo existe en filas mensuales (RAW.impMes) — en filas semanales (RAW.imp) se omite
+    // este chequeo acá; igual queda correcto porque más abajo se cruza contra el set mensual ya filtrado.
+    if(filters.estado.size && ('Master Mes.Estado presencial' in row) && !filters.estado.has(String(row['Master Mes.Estado presencial']))) return false;
     if(filters.search){
       const nm = String(row['Nombre Completo']||'').toLocaleLowerCase('es');
       if(!nm.includes(filters.search.toLocaleLowerCase('es'))) return false;
