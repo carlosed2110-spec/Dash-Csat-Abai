@@ -81,6 +81,11 @@
   .regla-warning{background:var(--riesgo-soft); border:1px solid #f5c88a; color:#8a5a00; border-radius:10px;
     padding:11px 16px; font-size:12.5px; margin-bottom:14px; line-height:1.5;}
   .regla-warning b{color:#7a4d00;}
+  .regla-legend{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+  .regla-legend .leg-chip{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); background:var(--surface);
+    border:1px solid var(--border); border-radius:20px; padding:6px 12px;}
+  .regla-legend .leg-chip b{color:var(--ink); font-weight:700;}
+  .regla-legend .leg-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
   .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px;}
   .kpi-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px 16px 14px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;}
   .kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--bar-color,var(--accent));}
@@ -173,6 +178,7 @@
 
     <div class="kpi-selector" id="kpiSelector"></div>
     <div id="reglaWarning" class="regla-warning" style="display:none;"></div>
+    <div id="reglaLegend" class="regla-legend"></div>
 
     <div class="filterbar">
       <div class="filter-group ms-filter" id="fg-mes"><label>Mes</label></div>
@@ -182,6 +188,7 @@
       <div class="filter-group ms-filter" id="fg-gestion"><label>Gestión</label></div>
       <div class="filter-group ms-filter" id="fg-categoria"><label>Categoría</label></div>
       <div class="filter-group ms-filter" id="fg-estado"><label>Estado</label></div>
+      <div class="filter-group ms-filter" id="fg-semana"><label>Semana</label></div>
       <div class="filter-group"><label>Buscar asesor</label><input type="text" class="search-input" id="fSearch" placeholder="Nombre del asesor..."></div>
       <button class="clear-btn" id="clearFilters" type="button">Limpiar filtros</button>
       <div class="spacer"></div>
@@ -231,6 +238,15 @@
         </div>
       </div>
       <div class="heatmap-scroll"><table class="heat" id="heatTable"></table></div>
+    </div>
+
+    <div class="panel" id="evoSemanalPanel" style="display:none;">
+      <div class="panel-head">
+        <div><p class="panel-title" id="evoSemanalTitle">Evolutivo semanal</p><p class="panel-sub">Desde la semana elegida en el filtro, muestra cómo evolucionó cada asesor semana a semana, y si mejoró o se desvió respecto a la semana anterior.</p></div>
+      </div>
+      <div class="table-scroll" style="max-height:340px;"><table class="detail" id="evoSemanalTable"></table></div>
+      <p class="panel-title" style="font-size:13px;margin-top:18px;">Status Semanas</p>
+      <div class="table-scroll" style="max-height:220px;"><table class="detail" id="evoSemanalSummary"></table></div>
     </div>
 
     <div class="panel">
@@ -313,7 +329,7 @@
   /* ==================================================================== */
   let RAW = { impMesRaw: [], impRaw: [], impMes: [], imp: [], objetivos: [], reglas: {}, tipoGest: new Map(), estadoAgentes: new Map() };
   let fileCache = new Map(); // key: filename|size -> parsed rows, evita re-parsear en cada "Recargar"
-  let filters = { mes:new Set(), programa:new Set(), plataforma:new Set(), jefe:new Set(), gestion:new Set(), categoria:new Set(), estado:new Set(), search:'' };
+  let filters = { mes:new Set(), programa:new Set(), plataforma:new Set(), jefe:new Set(), gestion:new Set(), categoria:new Set(), estado:new Set(), semana:new Set(), search:'' };
   let sortState = { col:'Nombre Completo', dir:'asc' };
   let page = 1;
   let charts = {};
@@ -596,6 +612,7 @@
     { key:'gestion', groupId:'fg-gestion', allLabel:'Toda gestión', valuesFn:()=>uniqueSorted(RAW.impMes.map(gestionOf)) },
     { key:'categoria', groupId:'fg-categoria', allLabel:'Toda categoría', valuesFn:()=>CAT_ORDER },
     { key:'estado', groupId:'fg-estado', allLabel:'Todo estado', valuesFn:()=>uniqueSorted(RAW.impMes.map(r=>r['Master Mes.Estado presencial'])) },
+    { key:'semana', groupId:'fg-semana', allLabel:'Elegir semana inicial', valuesFn:()=>WEEK_COLS },
   ];
 
   function closeAllMsPanels(except){
@@ -714,10 +731,35 @@
     } else {
       warnEl.style.display = 'none';
     }
+
+    renderReglaLegend(cfg, regla);
+  }
+
+  // Muestra qué significa cada categoría para el KPI activo, con los umbrales reales que se están
+  // aplicando (leídos de Matrix/Objetivos.xlsx > Reglas) — así no hay que adivinar ni preguntar.
+  function renderReglaLegend(cfg, regla){
+    const el = document.getElementById('reglaLegend');
+    const fmtUmbral = (v)=> cfg.unit==='pts' ? Number(v).toFixed(2) : fmtPct(v,1);
+    const peor = cfg.direccion==='mayor_mejor' ? 'por debajo' : 'por encima';
+
+    if(!regla){
+      el.innerHTML = `<span class="leg-chip"><span class="leg-dot" style="background:${COLORS.muted}"></span>Sin regla definida todavía para ${cfg.label} — no se muestran categorías</span>`;
+      return;
+    }
+
+    const chips = [
+      { cat:'Óptimo', text: `cumple el objetivo (${cfg.direccion==='mayor_mejor'?'≥':'≤'} objetivo)` },
+      { cat:'Controlado', text: `hasta ${fmtUmbral(regla.umbralControlado)} ${peor} del objetivo` },
+      { cat:'Riesgo', text: regla.umbralRiesgo!==null ? `de ${fmtUmbral(regla.umbralControlado)} a ${fmtUmbral(regla.umbralRiesgo)} ${peor} del objetivo` : `más de ${fmtUmbral(regla.umbralControlado)} ${peor} del objetivo` },
+      { cat:'Crítico', text: regla.umbralRiesgo!==null ? `más de ${fmtUmbral(regla.umbralRiesgo)} ${peor} del objetivo (solo vista mensual)` : null },
+    ];
+    el.innerHTML = chips.filter(c=>c.text).map(c=>
+      `<span class="leg-chip"><span class="leg-dot" style="background:${catColor(c.cat)}"></span><b>${c.cat}</b>: ${c.text}</span>`
+    ).join('');
   }
 
   function initFiltersAndRender(){
-    filters = { mes:new Set(), programa:new Set(), plataforma:new Set(), jefe:new Set(), gestion:new Set(), categoria:new Set(), estado:new Set(), search:'' };
+    filters = { mes:new Set(), programa:new Set(), plataforma:new Set(), jefe:new Set(), gestion:new Set(), categoria:new Set(), estado:new Set(), semana:new Set(), search:'' };
     sortState = { col:'Nombre Completo', dir:'asc' };
     page = 1;
 
@@ -743,6 +785,7 @@
     renderCatMensualChart();
     renderTrendChart();
     renderHeatmap();
+    renderWeeklyEvolutivo();
     renderDetailTable();
     document.getElementById('rowCountPill').textContent = fmtNum(filteredMonthly.length) + ' registros';
   }
@@ -1000,6 +1043,113 @@
       return `<tr><td class="name">${escapeHtml(e.nombre)}</td><td>${escapeHtml(e.programa)}</td><td>${escapeHtml(e.plataforma)}</td>${cells}<td><span class="badge ${badgeClass(catMes)}">${catMes||'—'}</span></td></tr>`;
     }).join('') + '</tbody>';
     heatTable.innerHTML = thead + tbody;
+  }
+
+  /* ---------------- EVOLUTIVO SEMANAL ---------------- */
+  // Se activa cuando el filtro "Semana" tiene al menos una semana marcada: toma esa como punto de
+  // partida, arma la población base (respetando el resto de filtros + Categoría evaluada EN esa
+  // semana puntual) y muestra cómo evolucionó cada asesor semana a semana desde ahí en adelante.
+  function computeWeeklyEvolutivo(){
+    if(!filters.semana.size) return null;
+    const startWeek = [...filters.semana].sort()[0];
+    const startIdx = WEEK_COLS.indexOf(startWeek);
+    if(startIdx===-1) return null;
+    const weeksToShow = WEEK_COLS.slice(startIdx);
+
+    const mesOk = (r)=> filters.mes.size===0 || filters.mes.has(String(r['Mes']));
+    const startRows = RAW.imp.filter(r => r['Semana']===startWeek && mesOk(r) && weeklyMatchesBaseFilters(r));
+    const baseRows = filters.categoria.size ? startRows.filter(r=>filters.categoria.has(String(r['Cat Semana Rll30']))) : startRows;
+    if(!baseRows.length) return { startWeek, weeksToShow, agents:[], summary:[] };
+
+    const agentKeys = new Set(baseRows.map(asesorKey));
+    const byAgentWeek = new Map();
+    RAW.imp.forEach(r=>{
+      if(!mesOk(r)) return;
+      const key = asesorKey(r);
+      if(!agentKeys.has(key)) return;
+      byAgentWeek.set(key+'|'+r['Semana'], r);
+    });
+
+    const cfg = KPI_CONFIG[currentKpi];
+    function statusBetween(prevRow, curRow){
+      if(!prevRow || !curRow) return null;
+      const prev = prevRow['%Rll 30'], cur = curRow['%Rll 30'];
+      if(typeof prev!=='number' || typeof cur!=='number') return null;
+      if(cur===prev) return 'Igual';
+      const improved = cfg.direccion==='mayor_mejor' ? (cur>prev) : (cur<prev);
+      return improved ? 'Mejora' : 'Se desvía';
+    }
+
+    const agents = [...agentKeys].map(key=>{
+      const [nombre,programa,plataforma] = key.split('|');
+      const weekRows = weeksToShow.map(w=>byAgentWeek.get(key+'|'+w) || null);
+      const statuses = [];
+      for(let i=1;i<weekRows.length;i++) statuses.push(statusBetween(weekRows[i-1], weekRows[i]));
+      return { nombre, programa, plataforma, weekRows, statuses };
+    });
+    agents.sort((a,b)=>String(a.nombre).localeCompare(String(b.nombre),'es'));
+
+    const summary = [];
+    for(let i=1;i<weeksToShow.length;i++){
+      const mejoran = agents.filter(a=>a.statuses[i-1]==='Mejora').length;
+      const desvian = agents.filter(a=>a.statuses[i-1]==='Se desvía').length;
+      const igual = agents.filter(a=>a.statuses[i-1]==='Igual').length;
+      summary.push({ week: weeksToShow[i], mejoran, desvian, igual });
+    }
+    return { startWeek, weeksToShow, agents, summary };
+  }
+
+  function statusBadge(status){
+    if(status==='Mejora') return `<span class="badge badge-optimo">Mejora</span>`;
+    if(status==='Se desvía') return `<span class="badge badge-critico">Se desvía</span>`;
+    if(status==='Igual') return `<span class="badge badge-neutral">Igual</span>`;
+    return `<span class="badge badge-neutral">—</span>`;
+  }
+
+  function renderWeeklyEvolutivo(){
+    const panel = document.getElementById('evoSemanalPanel');
+    const data = computeWeeklyEvolutivo();
+    if(!data){ panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+
+    const cfg = KPI_CONFIG[currentKpi];
+    const catLabel = filters.categoria.size===1 ? [...filters.categoria][0] : (filters.categoria.size>1 ? 'Varias categorías' : 'Todos');
+    document.getElementById('evoSemanalTitle').textContent = `${catLabel} — ${data.startWeek} en adelante (${cfg.label})`;
+
+    const detailTable = document.getElementById('evoSemanalTable');
+    if(!data.agents.length){
+      detailTable.innerHTML = '<tr><td style="padding:14px;color:var(--muted)">Nadie calza con los filtros actuales para esa semana.</td></tr>';
+      document.getElementById('evoSemanalSummary').innerHTML = '';
+      return;
+    }
+
+    let theadCells = '<th>Asesor</th><th>Programa</th><th>Plataforma</th>';
+    data.weeksToShow.forEach((w,i)=>{
+      theadCells += `<th>${w}</th>`;
+      if(i>0) theadCells += `<th>Status ${w}</th>`;
+    });
+    const thead = `<thead><tr>${theadCells}</tr></thead>`;
+
+    const tbody = '<tbody>' + data.agents.map(a=>{
+      let cells = `<td>${escapeHtml(a.nombre)}</td><td>${escapeHtml(a.programa)}</td><td>${escapeHtml(a.plataforma)}</td>`;
+      a.weekRows.forEach((r,i)=>{
+        cells += `<td class="mono">${r ? fmtKpiVal(r['%Rll 30']) : '—'}</td>`;
+        if(i>0) cells += `<td>${statusBadge(a.statuses[i-1])}</td>`;
+      });
+      return `<tr>${cells}</tr>`;
+    }).join('') + '</tbody>';
+    detailTable.innerHTML = thead + tbody;
+
+    const summaryTable = document.getElementById('evoSemanalSummary');
+    if(!data.summary.length){ summaryTable.innerHTML = ''; }
+    else{
+      const sHead = '<thead><tr><th></th>' + data.summary.map(s=>`<th>Status ${s.week}</th>`).join('') + '</tr></thead>';
+      const sBody = '<tbody>' +
+        `<tr><td><b>Mejoran</b></td>` + data.summary.map(s=>`<td class="mono" style="color:${COLORS.optimo}">${fmtNum(s.mejoran)}</td>`).join('') + `</tr>` +
+        `<tr><td><b>Se desvían</b></td>` + data.summary.map(s=>`<td class="mono" style="color:${COLORS.critico}">${fmtNum(s.desvian)}</td>`).join('') + `</tr>` +
+        '</tbody>';
+      summaryTable.innerHTML = sHead + sBody;
+    }
   }
 
   /* ---------------- DETAIL TABLE ---------------- */
