@@ -57,6 +57,14 @@
   .clear-btn:hover{border-color:var(--critico);color:var(--critico);}
   .meta-pill{font-size:12px;color:var(--accent-dark);background:var(--accent-soft);border:1px solid var(--accent-soft);padding:8px 14px;border-radius:20px;font-family:var(--font-mono);font-weight:600;white-space:nowrap;}
 
+  .kpi-selector{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
+  .kpi-pill{font-family:var(--font-body); font-weight:700; font-size:12.5px; padding:9px 16px; border-radius:20px;
+    border:1px solid var(--border-strong); background:#fff; color:var(--muted); cursor:pointer; transition:all .15s ease;}
+  .kpi-pill:hover{border-color:var(--accent); color:var(--accent);}
+  .kpi-pill.active{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .regla-warning{background:var(--riesgo-soft); border:1px solid #f5c88a; color:#8a5a00; border-radius:10px;
+    padding:11px 16px; font-size:12.5px; margin-bottom:14px; line-height:1.5;}
+  .regla-warning b{color:#7a4d00;}
   .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px;}
   .kpi-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px 16px 14px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden;}
   .kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--bar-color,var(--accent));}
@@ -147,6 +155,9 @@
       </div>
     </div>
 
+    <div class="kpi-selector" id="kpiSelector"></div>
+    <div id="reglaWarning" class="regla-warning" style="display:none;"></div>
+
     <div class="filterbar">
       <div class="filter-group"><label>Mes</label><select id="fMes"></select></div>
       <div class="filter-group"><label>Programa</label><select id="fPrograma"></select></div>
@@ -164,7 +175,7 @@
 
     <div class="panel">
       <div class="panel-head">
-        <div><p class="panel-title">Vista ejecutiva — Movimiento de Críticos</p><p class="panel-sub">Comparación mes vs. mes anterior: quiénes se mantienen en Crítico, quiénes se suman de nuevo, y quiénes mejoran. "Detectados desde Semana 1" = de los críticos del mes, cuántos ya venían en Riesgo desde la primera semana (no fue un salto de último momento).</p></div>
+        <div><p class="panel-title" id="execViewTitle">Vista ejecutiva — Movimiento de Críticos</p><p class="panel-sub">Comparación mes vs. mes anterior: quiénes se mantienen en Crítico, quiénes se suman de nuevo, y quiénes mejoran. "Detectados desde Semana 1" = de los críticos del mes, cuántos ya venían en Riesgo desde la primera semana (no fue un salto de último momento).</p></div>
       </div>
       <div class="kpi-row" id="execKpiRow" style="margin-bottom:16px;"></div>
       <div class="table-scroll" style="max-height:320px;"><table class="detail" id="execTable"></table></div>
@@ -173,13 +184,13 @@
     <div class="charts-row">
       <div class="panel">
         <div class="panel-head">
-          <div><p class="panel-title">Distribución de categoría por plataforma</p><p class="panel-sub">Conteo de asesores por Cat. Reitero — mes seleccionado</p></div>
+          <div><p class="panel-title">Distribución de categoría por plataforma</p><p class="panel-sub" id="catChartSub">Conteo de asesores por Cat. Reitero — mes seleccionado</p></div>
         </div>
         <div class="chart-box"><canvas id="chartCat"></canvas></div>
       </div>
       <div class="panel">
         <div class="panel-head">
-          <div><p class="panel-title">Tendencia %Rll30 vs objetivo</p><p class="panel-sub">Promedio mensual por plataforma</p></div>
+          <div><p class="panel-title" id="trendChartTitle">Tendencia %Rll30 vs objetivo</p><p class="panel-sub">Promedio mensual por plataforma</p></div>
         </div>
         <div class="chart-box"><canvas id="chartTrend"></canvas></div>
       </div>
@@ -267,10 +278,23 @@
   const HEATMAP_CAP = 400;
   const MES_LABELS = ['Ene.','Feb.','Mar.','Abr.','May.','Jun.','Jul.','Ago.','Sep.','Oct.','Nov.','Dic.'];
 
+  // Los 6 indicadores del panel. 'objField' acepta varios nombres candidatos en Objetivos.xlsx
+  // (para no romper si Carlos todavía tiene la columna con el sufijo "(próx.)" del template viejo).
+  // 'numField'/'denField' son las claves de suma cruda que arma loadImproductivos().
+  const KPI_CONFIG = {
+    rll30:    { label:'%Rll30',          shortLabel:'Rll30',          reglaKey:'Rll 30',        unit:'pct', direccion:'menor_mejor', objField:['Rll Obj 30'], numField:'re30', denField:'at30' },
+    rll72:    { label:'%Rll72',          shortLabel:'Rll72',          reglaKey:'Rll 72',        unit:'pct', direccion:'menor_mejor', objField:['Rll Obj 72'], numField:'re72', denField:'at72' },
+    nps:      { label:'NPS',             shortLabel:'NPS',            reglaKey:'NPS',           unit:'pct', direccion:'mayor_mejor', objField:['Nps Obj'], numField:'npsPond', denField:'pond' },
+    sol:      { label:'%Solución',       shortLabel:'Solución',       reglaKey:'Solución',      unit:'pct', direccion:'mayor_mejor', objField:['Sol Obj'], numField:'resolCalc', denField:'q' },
+    transfer: { label:'%Transferencias', shortLabel:'Transferencias', reglaKey:'Transferencia', unit:'pct', direccion:'menor_mejor', objField:['Transferencia Obj','Transferencia Obj (próx.)'], numField:'culpTrx', denField:'atendidas' },
+    csat:     { label:'CSAT',            shortLabel:'CSAT',           reglaKey:'CSAT',          unit:'pts', direccion:'mayor_mejor', objField:['CSAT Obj','CSAT Obj (próx.)'], numField:'csatNum', denField:'csatDen' },
+  };
+  let currentKpi = 'rll30';
+
   /* ==================================================================== */
   /*  STATE                                                                */
   /* ==================================================================== */
-  let RAW = { impMes: [], imp: [], objetivos: [], reglas: {}, tipoGest: new Map(), estadoAgentes: new Map() };
+  let RAW = { impMesRaw: [], impRaw: [], impMes: [], imp: [], objetivos: [], reglas: {}, tipoGest: new Map(), estadoAgentes: new Map() };
   let fileCache = new Map(); // key: filename|size -> parsed rows, evita re-parsear en cada "Recargar"
   let filters = { mes:'todos', programa:'todos', plataforma:'todos', jefe:'todos', gestion:'todos', categoria:'todos', search:'' };
   let sortState = { col:'Nombre Completo', dir:'asc' };
@@ -281,6 +305,12 @@
   /*  HELPERS                                                              */
   /* ==================================================================== */
   function fmtPct(x, digits){ if(typeof x !== 'number' || isNaN(x)) return '—'; return (x*100).toFixed(digits===undefined?1:digits) + '%'; }
+  // Formatea un valor de KPI según su unidad: % para la mayoría, puntos planos (0-9) para CSAT.
+  function fmtKpiVal(x, digits){
+    if(typeof x !== 'number' || isNaN(x)) return '—';
+    if(KPI_CONFIG[currentKpi].unit === 'pts') return x.toFixed(digits===undefined?2:digits);
+    return fmtPct(x, digits);
+  }
   function fmtNum(x){ if(typeof x !== 'number' || isNaN(x)) return '—'; return new Intl.NumberFormat('es-PE').format(x); }
   function mean(arr){ const v = arr.filter(x=>typeof x==='number' && !isNaN(x)); if(!v.length) return null; return v.reduce((a,b)=>a+b,0)/v.length; }
   function uniqueSorted(arr){
@@ -342,9 +372,12 @@
     }
   }
 
-  function objetivoFor(plataforma, mes, campo){
+  function objetivoFor(plataforma, mes, campos){
     const row = RAW.objetivos.find(r => r['PLATAFORMA']===plataforma && Number(r['Mes'])===Number(mes));
-    return row ? row[campo] : null;
+    if(!row) return null;
+    const list = Array.isArray(campos) ? campos : [campos];
+    for(const c of list){ if(row[c]!==undefined && row[c]!==null && row[c]!=='') return row[c]; }
+    return null;
   }
 
   /* ==================================================================== */
@@ -387,6 +420,7 @@
 
   /* ==================================================================== */
   /*  CARGA: improductivos-data.json -> agrega a nivel MENSUAL y SEMANAL   */
+  /*  para los 6 indicadores (KPI_CONFIG)                                  */
   /* ==================================================================== */
   async function loadImproductivos(){
     const data = await fetchJson(IMPRODUCTIVOS_JSON);
@@ -397,6 +431,7 @@
 
     const monthlyGroups = new Map(); // key: nombre|programa|plataforma|mes
     const weeklyGroups  = new Map(); // key: nombre|programa|plataforma|mes|semana
+    const blankSums = () => ({ at72:0, re72:0, at30:0, re30:0, npsPond:0, pond:0, resolCalc:0, q:0, culpTrx:0, atendidas:0, csatNum:0, csatDen:0 });
 
     records.forEach(r=>{
       const plataforma = r.plataforma;
@@ -409,47 +444,66 @@
       const mes = MES_TEXT_TO_NUM[r.mes] || null; // el JSON trae el mes como texto ("Jul."), acá se convierte a número para cruzar con Objetivos
       if(mes===null) return;
 
-      const at72 = Number(r.atendRell72) || 0;
-      const re72 = Number(r.rell72) || 0;
-      const at30 = Number(r.atendRell30) || 0;
-      const re30 = Number(r.rell30) || 0;
+      const vals = {
+        at72: Number(r.atendRell72) || 0,
+        re72: Number(r.rell72) || 0,
+        at30: Number(r.atendRell30) || 0,
+        re30: Number(r.rell30) || 0,
+        npsPond: Number(r.nps_pond) || 0,
+        pond: Number(r.pond) || 0,
+        resolCalc: Number(r.resolCalc) || 0,
+        q: Number(r.q) || 0,
+        culpTrx: Number(r.culpTrx) || 0,
+        atendidas: Number(r.atendidas) || 0,
+        csatNum: Number(r.csatNum) || 0,
+        csatDen: Number(r.csatDen) || 0,
+      };
 
       const mKey = [nombre, programa, plataforma, mes].join('|');
-      if(!monthlyGroups.has(mKey)) monthlyGroups.set(mKey, { nombre, programa, plataforma, jefe, mes, at72:0, re72:0, at30:0, re30:0 });
+      if(!monthlyGroups.has(mKey)) monthlyGroups.set(mKey, { nombre, programa, plataforma, jefe, mes, ...blankSums() });
       const mg = monthlyGroups.get(mKey);
-      mg.at72 += at72; mg.re72 += re72; mg.at30 += at30; mg.re30 += re30;
+      Object.keys(vals).forEach(k=>{ mg[k] += vals[k]; });
 
       const wKey = [nombre, programa, plataforma, mes, semana].join('|');
-      if(!weeklyGroups.has(wKey)) weeklyGroups.set(wKey, { nombre, programa, plataforma, jefe, mes, semana, at72:0, re72:0, at30:0, re30:0 });
+      if(!weeklyGroups.has(wKey)) weeklyGroups.set(wKey, { nombre, programa, plataforma, jefe, mes, semana, ...blankSums() });
       const wg = weeklyGroups.get(wKey);
-      wg.at72 += at72; wg.re72 += re72; wg.at30 += at30; wg.re30 += re30;
+      Object.keys(vals).forEach(k=>{ wg[k] += vals[k]; });
     });
 
-    RAW.impMes = [...monthlyGroups.values()].map(g=>{
-      const pRll30 = g.at30 ? g.re30/g.at30 : null;
-      const pRll72 = g.at72 ? g.re72/g.at72 : null;
-      const objRll30 = objetivoFor(g.plataforma, g.mes, 'Rll Obj 30');
-      const objRll72 = objetivoFor(g.plataforma, g.mes, 'Rll Obj 72');
+    RAW.impMesRaw = [...monthlyGroups.values()];
+    RAW.impRaw = [...weeklyGroups.values()];
+    recomputeKpi(currentKpi);
+  }
+
+  // Deriva 'RAW.impMes'/'RAW.imp' (los campos que consumen TODAS las vistas del panel) a partir
+  // de las sumas crudas guardadas en 'RAW.impMesRaw'/'RAW.impRaw', para el KPI seleccionado.
+  // Los nombres de campo de salida se mantienen iguales a los que ya usaba el panel en Fase 1
+  // ('%Rll 30', 'Objetivos.Rll Obj 30', 'Cat Reitero', 'Cat Semana Rll30') para no tener que
+  // tocar cada función de render — simplemente representan "el valor del KPI activo" ahora.
+  function recomputeKpi(kpiKey){
+    const cfg = KPI_CONFIG[kpiKey];
+
+    RAW.impMes = RAW.impMesRaw.map(g=>{
+      const actual = g[cfg.denField] ? g[cfg.numField]/g[cfg.denField] : null;
+      const objetivo = objetivoFor(g.plataforma, g.mes, cfg.objField);
       const est = estadoFor(g.mes, g.nombre);
       return {
         'Nombre Completo': g.nombre, 'Programa': g.programa, 'PLATAFORMA': g.plataforma, 'Jefe Directo': g.jefe, 'Mes': g.mes,
-        'AT 72': g.at72, 'Reitero 72': g.re72, 'AT 30': g.at30, 'Reitero 30': g.re30,
-        '%Rll 30': pRll30, '%Rll 72': pRll72,
-        'Objetivos.Rll Obj 30': objRll30, 'Objetivos.Rll Obj 72': objRll72,
-        'Cat Reitero': computeCategoria(pRll30, objRll30, 'Rll 30', 'mensual'),
+        '%Rll 30': actual, 'Objetivos.Rll Obj 30': objetivo,
+        'Cat Reitero': computeCategoria(actual, objetivo, cfg.reglaKey, 'mensual'),
         'TipoGest.Gestión Plat.1': gestionFor(g.programa, g.plataforma),
         'Master Mes.Tiempo de permanencia': est.tiempoPermanencia ?? null,
         'Master Mes.Estado presencial': est.estadoPresencial ?? null,
       };
     });
 
-    RAW.imp = [...weeklyGroups.values()].map(g=>{
-      const pRll30 = g.at30 ? g.re30/g.at30 : null;
-      const objRll30 = objetivoFor(g.plataforma, g.mes, 'Rll Obj 30');
+    RAW.imp = RAW.impRaw.map(g=>{
+      const actual = g[cfg.denField] ? g[cfg.numField]/g[cfg.denField] : null;
+      const objetivo = objetivoFor(g.plataforma, g.mes, cfg.objField);
       return {
         'Nombre Completo': g.nombre, 'Programa': g.programa, 'PLATAFORMA': g.plataforma, 'Jefe Directo': g.jefe, 'Mes': g.mes, 'Semana': g.semana,
-        '%Rll 30': pRll30, 'Objetivos.Rll Obj 30': objRll30,
-        'Cat Semana Rll30': computeCategoria(pRll30, objRll30, 'Rll 30', 'semanal'),
+        '%Rll 30': actual, 'Objetivos.Rll Obj 30': objetivo,
+        'Cat Semana Rll30': computeCategoria(actual, objetivo, cfg.reglaKey, 'semanal'),
         'TipoGest.Gestión Plat': gestionFor(g.programa, g.plataforma),
       };
     });
@@ -495,6 +549,7 @@
       if(!RAW.impMes.length) throw new Error('No se generaron registros mensuales a partir de improductivos-data.json.');
 
       document.getElementById('lastUpdateLabel').textContent = 'cargado ' + new Date().toLocaleString('es-PE', {dateStyle:'medium', timeStyle:'short'});
+      renderKpiSelector();
       initFiltersAndRender();
       document.getElementById('loadScreen').style.display = 'none';
       document.getElementById('dashScreen').style.display = 'block';
@@ -518,6 +573,43 @@
     values.forEach(v=>{
       const o = document.createElement('option'); o.value=v; o.textContent = labeler ? labeler(v) : v; el.appendChild(o);
     });
+  }
+
+  /* ---------------- SELECTOR DE KPI ---------------- */
+  function renderKpiSelector(){
+    const el = document.getElementById('kpiSelector');
+    el.innerHTML = Object.keys(KPI_CONFIG).map(k=>
+      `<button type="button" class="kpi-pill ${k===currentKpi?'active':''}" data-kpi="${k}">${escapeHtml(KPI_CONFIG[k].shortLabel)}</button>`
+    ).join('');
+    el.querySelectorAll('.kpi-pill').forEach(btn=>{
+      btn.onclick = ()=>{
+        const k = btn.getAttribute('data-kpi');
+        if(k===currentKpi) return;
+        currentKpi = k;
+        recomputeKpi(currentKpi);
+        el.querySelectorAll('.kpi-pill').forEach(b=>b.classList.toggle('active', b===btn));
+        updateKpiLabels();
+        page = 1;
+        render();
+      };
+    });
+    updateKpiLabels();
+  }
+
+  function updateKpiLabels(){
+    const cfg = KPI_CONFIG[currentKpi];
+    document.getElementById('catChartSub').textContent = `Conteo de asesores por Cat. ${cfg.shortLabel} — mes seleccionado`;
+    document.getElementById('trendChartTitle').textContent = `Tendencia ${cfg.label} vs objetivo`;
+    document.getElementById('execViewTitle').textContent = `Vista ejecutiva — Movimiento de Críticos (${cfg.shortLabel})`;
+
+    const regla = RAW.reglas[cfg.reglaKey];
+    const warnEl = document.getElementById('reglaWarning');
+    if(!regla){
+      warnEl.style.display = 'block';
+      warnEl.innerHTML = `<b>Regla de categorización pendiente para ${cfg.label}:</b> agrega los umbrales de "${cfg.reglaKey}" en la hoja Reglas de Matrix/Objetivos.xlsx para que este indicador muestre categorías (Óptimo/Controlado/Riesgo/Crítico). Mientras tanto, los valores y objetivos sí se calculan y muestran normalmente.`;
+    } else {
+      warnEl.style.display = 'none';
+    }
   }
 
   function initFiltersAndRender(){
@@ -571,13 +663,19 @@
 
   /* ---------------- KPI CARDS ---------------- */
   function renderKPIs(rows){
+    const cfg = KPI_CONFIG[currentKpi];
     const asesores = new Set(rows.map(r=>r['Nombre Completo'])).size;
     const cats = rows.map(r=>r['Cat Reitero']).filter(c=>c!==null);
     const cumplimiento = cats.length ? (cats.filter(c=>c==='Óptimo'||c==='Controlado').length/cats.length) : null;
     const enRiesgo = cats.length ? (cats.filter(c=>c==='Riesgo'||c==='Crítico').length/cats.length) : null;
     const avgActual = mean(rows.map(r=>r['%Rll 30']));
     const avgObj = mean(rows.map(r=>r['Objetivos.Rll Obj 30']));
-    const delta = (typeof avgActual==='number' && typeof avgObj==='number') ? (avgObj-avgActual) : null;
+    let delta = null, isGood = null;
+    if(typeof avgActual==='number' && typeof avgObj==='number'){
+      // mismo criterio de signo que computeCategoria: positivo = mal, negativo/0 = bien
+      delta = cfg.direccion==='mayor_mejor' ? (avgObj-avgActual) : (avgActual-avgObj);
+      isGood = delta<=0;
+    }
     const estados = rows.map(r=>r['Master Mes.Estado presencial']).filter(e=>e!==null && e!==undefined && e!=='');
     const activos = estados.length ? estados.filter(e=>String(e).trim().toLocaleUpperCase('es')==='ACTIVO').length/estados.length : null;
 
@@ -585,7 +683,7 @@
       { label:'Asesores en seguimiento', value:fmtNum(asesores), sub:'nombres únicos filtrados', color:COLORS.accent },
       { label:'% Cumplimiento', value:fmtPct(cumplimiento), sub:'Óptimo + Controlado', color:COLORS.optimo },
       { label:'% En riesgo', value:fmtPct(enRiesgo), sub:'Riesgo + Crítico', color:COLORS.critico },
-      { label:'%Rll30 vs objetivo', value:fmtPct(avgActual), sub: delta===null ? 'sin datos de objetivo' : (delta>=0 ? ('▼ '+fmtPct(Math.abs(delta))+' bajo objetivo') : ('▲ '+fmtPct(Math.abs(delta))+' sobre objetivo')), color: delta!==null && delta<0 ? COLORS.critico : COLORS.optimo },
+      { label:cfg.label+' vs objetivo', value:fmtKpiVal(avgActual), sub: delta===null ? 'sin datos de objetivo' : (isGood ? ('✓ cumple objetivo ('+fmtKpiVal(avgObj)+')') : ('fuera de objetivo por '+fmtKpiVal(Math.abs(delta)))), color: delta===null ? COLORS.accent : (isGood?COLORS.optimo:COLORS.critico) },
       { label:'% Activos', value:fmtPct(activos), sub:'sobre estado presencial', color:COLORS.controlado },
     ];
     document.getElementById('kpiRow').innerHTML = cards.map(c=>`
@@ -708,6 +806,7 @@
   }
 
   function renderTrendChart(){
+    const cfg = KPI_CONFIG[currentKpi];
     const rows = getFilteredMonthly(false);
     const meses = uniqueSorted(rows.map(r=>r['Mes']));
     const actual = meses.map(m=>mean(rows.filter(r=>r['Mes']===m).map(r=>r['%Rll 30'])));
@@ -717,7 +816,7 @@
     charts.trend = new Chart(ctx, { type:'line',
       data:{ labels: meses.map(m=>'Mes '+mesLabel(m)),
         datasets:[
-          { label:'%Rll30 real', data:actual, borderColor:COLORS.accent, backgroundColor:COLORS.accent, tension:.3,
+          { label:cfg.label+' real', data:actual, borderColor:COLORS.accent, backgroundColor:COLORS.accent, tension:.3,
             pointRadius:4, pointHoverRadius:7, pointHoverBackgroundColor:COLORS.accent, pointHoverBorderColor:'#fff', pointHoverBorderWidth:2 },
           { label:'Objetivo', data:objetivo, borderColor:COLORS.muted, backgroundColor:COLORS.muted, borderDash:[6,4], tension:.3,
             pointRadius:3, pointHoverRadius:6, pointHoverBackgroundColor:COLORS.muted, pointHoverBorderColor:'#fff', pointHoverBorderWidth:2 }
@@ -727,9 +826,9 @@
           tooltip:{ backgroundColor:'#0B1B36', padding:10, titleFont:{family:'Sora',weight:'700'}, bodyFont:{family:'Inter'},
             callbacks:{ label:function(ctx){
               const v = ctx.parsed.y;
-              return `${ctx.dataset.label}: ${typeof v==='number' ? (v*100).toFixed(1)+'%' : '—'}`;
+              return `${ctx.dataset.label}: ${fmtKpiVal(v)}`;
             } } } },
-        scales:{ y:{ ticks:{callback:v=>(v*100).toFixed(0)+'%'}, grid:{color:'#eef1f6'} }, x:{grid:{display:false}} } } });
+        scales:{ y:{ ticks:{callback:v=> cfg.unit==='pts' ? Number(v).toFixed(1) : (v*100).toFixed(0)+'%'}, grid:{color:'#eef1f6'} }, x:{grid:{display:false}} } } });
   }
 
   function renderCatMensualChart(){
@@ -760,7 +859,7 @@
     if(!RAW.imp.length){ heatTable.innerHTML = '<tr><td style="padding:16px;color:var(--muted)">Aún no hay detalle semanal disponible.</td></tr>'; document.getElementById('heatSub').textContent='Detalle semanal no disponible'; return; }
     const meses = uniqueSorted(RAW.impMes.map(r=>r['Mes']));
     const targetMes = filters.mes!=='todos' ? filters.mes : meses[meses.length-1];
-    document.getElementById('heatSub').textContent = 'Categoría Rll30 por asesor, semana a semana — Mes ' + mesLabel(targetMes) + (filters.mes==='todos' ? ' (más reciente)' : '');
+    document.getElementById('heatSub').textContent = 'Categoría ' + KPI_CONFIG[currentKpi].shortLabel + ' por asesor, semana a semana — Mes ' + mesLabel(targetMes) + (filters.mes==='todos' ? ' (más reciente)' : '');
 
     // El filtro de Categoría es MENSUAL (Cat Reitero) — decide qué asesores aparecen en el mapa.
     // Las celdas semanales muestran su propia categoría (Cat Semana Rll30), que NUNCA es "Crítico"
@@ -815,22 +914,28 @@
   }
 
   /* ---------------- DETAIL TABLE ---------------- */
-  const DETAIL_COLS = [
-    { key:'Nombre Completo', label:'Asesor' }, { key:'Programa', label:'Programa' }, { key:'PLATAFORMA', label:'Plataforma' },
-    { key:'Jefe Directo', label:'Jefe Directo' },
-    { key:'Mes', label:'Mes' }, { key:'Cat Reitero', label:'Categoría' }, { key:'%Rll 30', label:'%Rll30' },
-    { key:'ObjRll30', label:'Objetivo' }, { key:'Delta', label:'Delta' }, { key:'Estado', label:'Estado' }, { key:'Permanencia', label:'Permanencia' },
-  ];
+  function getDetailCols(){
+    const cfg = KPI_CONFIG[currentKpi];
+    return [
+      { key:'Nombre Completo', label:'Asesor' }, { key:'Programa', label:'Programa' }, { key:'PLATAFORMA', label:'Plataforma' },
+      { key:'Jefe Directo', label:'Jefe Directo' },
+      { key:'Mes', label:'Mes' }, { key:'Cat Reitero', label:'Categoría' }, { key:'%Rll 30', label:cfg.label },
+      { key:'ObjRll30', label:'Objetivo' }, { key:'Delta', label:'Delta' }, { key:'Estado', label:'Estado' }, { key:'Permanencia', label:'Permanencia' },
+    ];
+  }
   function detailRowsComputed(){
+    const cfg = KPI_CONFIG[currentKpi];
     return getFilteredMonthly(true).map(r=>{
       const actual = r['%Rll 30'], obj = r['Objetivos.Rll Obj 30'];
-      const delta = (typeof actual==='number' && typeof obj==='number') ? (obj-actual) : null;
+      // mismo criterio de signo que computeCategoria/renderKPIs: positivo = fuera de objetivo (mal)
+      const delta = (typeof actual==='number' && typeof obj==='number') ? (cfg.direccion==='mayor_mejor' ? (obj-actual) : (actual-obj)) : null;
       return { 'Nombre Completo':r['Nombre Completo'], 'Programa':r['Programa'], 'PLATAFORMA':r['PLATAFORMA'], 'Jefe Directo':r['Jefe Directo'], 'Mes':r['Mes'],
         'Cat Reitero':r['Cat Reitero'], '%Rll 30':actual, 'ObjRll30':obj, 'Delta':delta,
         'Estado':r['Master Mes.Estado presencial'], 'Permanencia':r['Master Mes.Tiempo de permanencia'] };
     });
   }
   function renderDetailTable(){
+    const DETAIL_COLS = getDetailCols();
     let rows = detailRowsComputed();
     const NUMERIC_COLS = new Set(['Mes','%Rll 30','ObjRll30','Delta']);
     rows.sort((a,b)=>{
@@ -856,8 +961,8 @@
         <td>${escapeHtml(r['Jefe Directo'])}</td>
         <td class="mono">${mesLabel(r['Mes'])}</td>
         <td><span class="badge ${badgeClass(r['Cat Reitero'])}">${r['Cat Reitero']||'—'}</span></td>
-        <td class="mono">${fmtPct(r['%Rll 30'])}</td><td class="mono">${fmtPct(r['ObjRll30'])}</td>
-        <td class="mono" style="color:${r['Delta']===null?'inherit':(r['Delta']>=0?COLORS.optimo:COLORS.critico)}">${r['Delta']===null?'—':fmtPct(r['Delta'])}</td>
+        <td class="mono">${fmtKpiVal(r['%Rll 30'])}</td><td class="mono">${fmtKpiVal(r['ObjRll30'])}</td>
+        <td class="mono" style="color:${r['Delta']===null?'inherit':(r['Delta']<=0?COLORS.optimo:COLORS.critico)}">${r['Delta']===null?'—':fmtKpiVal(r['Delta'])}</td>
         <td>${escapeHtml(r['Estado']||'—')}</td><td>${escapeHtml(r['Permanencia']||'—')}</td>
       </tr>`).join('') + '</tbody>';
     const table = document.getElementById('detailTable');
@@ -871,7 +976,10 @@
   }
 
   /* ---------------- EXPORTAR A EXCEL ---------------- */
+  // Exporta TODAS las filas que calzan con los filtros actuales (no solo la página visible en pantalla),
+  // respetando el orden que se ve en la tabla.
   function exportDetailToExcel(){
+    const cfg = KPI_CONFIG[currentKpi];
     let rows = detailRowsComputed();
     const NUMERIC_COLS = new Set(['Mes','%Rll 30','ObjRll30','Delta']);
     rows.sort((a,b)=>{
@@ -894,7 +1002,7 @@
       'Jefe Directo': r['Jefe Directo'] || '',
       'Mes': mesLabel(r['Mes']),
       'Categoría': r['Cat Reitero'] || '',
-      '%Rll30': typeof r['%Rll 30']==='number' ? r['%Rll 30'] : null,
+      [cfg.label]: typeof r['%Rll 30']==='number' ? r['%Rll 30'] : null,
       'Objetivo': typeof r['ObjRll30']==='number' ? r['ObjRll30'] : null,
       'Delta': typeof r['Delta']==='number' ? r['Delta'] : null,
       'Estado': r['Estado'] || '',
@@ -902,18 +1010,20 @@
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportRows);
+    // Formato % para las columnas numéricas (G=KPI, H=Objetivo, I=Delta) — CSAT se deja como número plano
     const range = XLSX.utils.decode_range(ws['!ref']);
+    const numFormat = cfg.unit==='pts' ? '0.00' : '0.0%';
     ['G','H','I'].forEach(col=>{
       for(let r=1; r<=range.e.r; r++){
         const addr = col + (r+1);
-        if(ws[addr] && typeof ws[addr].v === 'number'){ ws[addr].z = '0.0%'; ws[addr].t = 'n'; }
+        if(ws[addr] && typeof ws[addr].v === 'number'){ ws[addr].z = numFormat; ws[addr].t = 'n'; }
       }
     });
     ws['!cols'] = [{wch:28},{wch:26},{wch:20},{wch:26},{wch:8},{wch:12},{wch:10},{wch:10},{wch:10},{wch:12},{wch:18}];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Detalle PDA');
-    const fname = `PDA_Detalle_${new Date().toISOString().slice(0,10)}.xlsx`;
+    const fname = `PDA_Detalle_${cfg.shortLabel}_${new Date().toISOString().slice(0,10)}.xlsx`;
     XLSX.writeFile(wb, fname);
   }
 
