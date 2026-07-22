@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Panel PDA · Seguimiento Rellamadas — ABAI / Movistar (Nube)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   /* ====== Paleta compartida del portal (navy + acento azul) ====== */
@@ -207,6 +208,7 @@
     <div class="panel">
       <div class="panel-head">
         <div><p class="panel-title">Detalle por asesor</p><p class="panel-sub">Clic en un encabezado para ordenar</p></div>
+        <button class="btn btn-sm" id="exportBtn" type="button">⬇ Exportar a Excel</button>
       </div>
       <div class="table-scroll"><table class="detail" id="detailTable"></table></div>
       <div class="pager">
@@ -549,6 +551,7 @@
     document.getElementById('prevPage').onclick = ()=>{ if(page>1){ page--; renderDetailTable(); } };
     document.getElementById('nextPage').onclick = ()=>{ page++; renderDetailTable(); };
     document.getElementById('clearFilters').onclick = ()=>{ initFiltersAndRender(); };
+    document.getElementById('exportBtn').onclick = exportDetailToExcel;
 
     render();
   }
@@ -865,6 +868,53 @@
     document.getElementById('pagerInfo').textContent = `Mostrando ${rows.length?((page-1)*PAGE_SIZE+1):0}–${Math.min(page*PAGE_SIZE, rows.length)} de ${fmtNum(rows.length)}`;
     document.getElementById('prevPage').disabled = page<=1;
     document.getElementById('nextPage').disabled = page>=totalPages;
+  }
+
+  /* ---------------- EXPORTAR A EXCEL ---------------- */
+  function exportDetailToExcel(){
+    let rows = detailRowsComputed();
+    const NUMERIC_COLS = new Set(['Mes','%Rll 30','ObjRll30','Delta']);
+    rows.sort((a,b)=>{
+      const raw_a=a[sortState.col], raw_b=b[sortState.col];
+      if(NUMERIC_COLS.has(sortState.col)){
+        const va=(typeof raw_a==='number'&&!isNaN(raw_a))?raw_a:null, vb=(typeof raw_b==='number'&&!isNaN(raw_b))?raw_b:null;
+        if(va===null&&vb===null) return 0; if(va===null) return 1; if(vb===null) return -1;
+        const cmp=va-vb; return sortState.dir==='asc'?cmp:-cmp;
+      }
+      let va=raw_a, vb=raw_b; if(va===null||va===undefined) va=''; if(vb===null||vb===undefined) vb='';
+      const cmp=String(va).localeCompare(String(vb),'es'); return sortState.dir==='asc'?cmp:-cmp;
+    });
+
+    if(!rows.length){ alert('No hay filas para exportar con los filtros actuales.'); return; }
+
+    const exportRows = rows.map(r=>({
+      'Asesor': r['Nombre Completo'] || '',
+      'Programa': r['Programa'] || '',
+      'Plataforma': r['PLATAFORMA'] || '',
+      'Jefe Directo': r['Jefe Directo'] || '',
+      'Mes': mesLabel(r['Mes']),
+      'Categoría': r['Cat Reitero'] || '',
+      '%Rll30': typeof r['%Rll 30']==='number' ? r['%Rll 30'] : null,
+      'Objetivo': typeof r['ObjRll30']==='number' ? r['ObjRll30'] : null,
+      'Delta': typeof r['Delta']==='number' ? r['Delta'] : null,
+      'Estado': r['Estado'] || '',
+      'Permanencia': r['Permanencia'] || '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    ['G','H','I'].forEach(col=>{
+      for(let r=1; r<=range.e.r; r++){
+        const addr = col + (r+1);
+        if(ws[addr] && typeof ws[addr].v === 'number'){ ws[addr].z = '0.0%'; ws[addr].t = 'n'; }
+      }
+    });
+    ws['!cols'] = [{wch:28},{wch:26},{wch:20},{wch:26},{wch:8},{wch:12},{wch:10},{wch:10},{wch:10},{wch:12},{wch:18}];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Detalle PDA');
+    const fname = `PDA_Detalle_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb, fname);
   }
 
 })();
