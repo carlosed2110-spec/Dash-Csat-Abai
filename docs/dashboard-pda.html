@@ -242,7 +242,7 @@
 
     <div class="panel" id="evoSemanalPanel" style="display:none;">
       <div class="panel-head">
-        <div><p class="panel-title" id="evoSemanalTitle">Evolutivo semanal</p><p class="panel-sub">Desde la semana elegida en el filtro, muestra cómo evolucionó cada asesor semana a semana, y si mejoró o se desvió respecto a la semana anterior.</p></div>
+        <div><p class="panel-title" id="evoSemanalTitle">Evolutivo semanal</p><p class="panel-sub">Desde la semana elegida en el filtro, muestra cómo evolucionó la categoría de cada asesor semana a semana. "Mejora" = cruzó de zona mala (Crítico/Riesgo) a zona buena (Controlado/Óptimo). "Se desvía" = empeoró de categoría (incluye cruzar a zona mala). "Se mantienen" = igual categoría, o mejoró sin salir de la zona mala (ej. Crítico → Riesgo).</p></div>
       </div>
       <div class="table-scroll" style="max-height:340px;"><table class="detail" id="evoSemanalTable"></table></div>
       <p class="panel-title" style="font-size:13px;margin-top:18px;">Status Semanas</p>
@@ -1070,14 +1070,22 @@
       byAgentWeek.set(key+'|'+r['Semana'], r);
     });
 
-    const cfg = KPI_CONFIG[currentKpi];
+    const CAT_RANK = { 'Crítico':0, 'Riesgo':1, 'Controlado':2, 'Óptimo':3 };
+    const BAD_CATS = new Set(['Crítico','Riesgo']);
+    // Status por CATEGORÍA (no por el valor crudo): cruzar de zona mala (Crítico/Riesgo) a zona
+    // buena (Controlado/Óptimo) es "Mejora". Empeorar dentro de la misma zona (ej. Riesgo->Crítico,
+    // o cruzar de buena a mala) es "Se desvía". Todo lo demás -incluida una mejora que no alcanza
+    // a cruzar de zona, ej. Crítico->Riesgo- cuenta como "Se mantienen".
     function statusBetween(prevRow, curRow){
       if(!prevRow || !curRow) return null;
-      const prev = prevRow['%Rll 30'], cur = curRow['%Rll 30'];
-      if(typeof prev!=='number' || typeof cur!=='number') return null;
-      if(cur===prev) return 'Igual';
-      const improved = cfg.direccion==='mayor_mejor' ? (cur>prev) : (cur<prev);
-      return improved ? 'Mejora' : 'Se desvía';
+      const prevCat = prevRow['Cat Semana Rll30'], curCat = curRow['Cat Semana Rll30'];
+      if(!prevCat || !curCat) return null;
+      if(prevCat === curCat) return 'Se mantienen';
+      const prevBad = BAD_CATS.has(prevCat), curBad = BAD_CATS.has(curCat);
+      if(prevBad && !curBad) return 'Mejora';
+      if(!prevBad && curBad) return 'Se desvía';
+      // misma zona, categoría distinta
+      return (CAT_RANK[curCat] < CAT_RANK[prevCat]) ? 'Se desvía' : 'Se mantienen';
     }
 
     const agents = [...agentKeys].map(key=>{
@@ -1093,8 +1101,8 @@
     for(let i=1;i<weeksToShow.length;i++){
       const mejoran = agents.filter(a=>a.statuses[i-1]==='Mejora').length;
       const desvian = agents.filter(a=>a.statuses[i-1]==='Se desvía').length;
-      const igual = agents.filter(a=>a.statuses[i-1]==='Igual').length;
-      summary.push({ week: weeksToShow[i], mejoran, desvian, igual });
+      const mantienen = agents.filter(a=>a.statuses[i-1]==='Se mantienen').length;
+      summary.push({ week: weeksToShow[i], mejoran, desvian, mantienen });
     }
     return { startWeek, weeksToShow, agents, summary };
   }
@@ -1102,7 +1110,7 @@
   function statusBadge(status){
     if(status==='Mejora') return `<span class="badge badge-optimo">Mejora</span>`;
     if(status==='Se desvía') return `<span class="badge badge-critico">Se desvía</span>`;
-    if(status==='Igual') return `<span class="badge badge-neutral">Igual</span>`;
+    if(status==='Se mantienen') return `<span class="badge badge-neutral">Se mantienen</span>`;
     return `<span class="badge badge-neutral">—</span>`;
   }
 
@@ -1146,6 +1154,7 @@
       const sHead = '<thead><tr><th></th>' + data.summary.map(s=>`<th>Status ${s.week}</th>`).join('') + '</tr></thead>';
       const sBody = '<tbody>' +
         `<tr><td><b>Mejoran</b></td>` + data.summary.map(s=>`<td class="mono" style="color:${COLORS.optimo}">${fmtNum(s.mejoran)}</td>`).join('') + `</tr>` +
+        `<tr><td><b>Se mantienen</b></td>` + data.summary.map(s=>`<td class="mono" style="color:${COLORS.muted}">${fmtNum(s.mantienen)}</td>`).join('') + `</tr>` +
         `<tr><td><b>Se desvían</b></td>` + data.summary.map(s=>`<td class="mono" style="color:${COLORS.critico}">${fmtNum(s.desvian)}</td>`).join('') + `</tr>` +
         '</tbody>';
       summaryTable.innerHTML = sHead + sBody;
